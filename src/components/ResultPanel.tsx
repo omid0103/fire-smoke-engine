@@ -6,7 +6,7 @@ function prettyKey(key: string) {
   const labels: Record<string, string> = {
     volume_m3: 'حجم', normal_exhaust_cfm: 'دبی تهویه عادی', fire_exhaust_cfm: 'دبی تخلیه حریق', design_exhaust_cfm: 'دبی طراحی', makeup_air_cfm: 'هوای جبرانی', exhaust_shaft_area_m2: 'سطح شفت تخلیه', makeup_shaft_area_m2: 'سطح شفت جبرانی', exhaust_damper_area_m2: 'سطح دمپر دود', two_fan_50pct_each_cfm: 'ظرفیت هر فن در آرایش 2×50%', friction_head_m: 'افت هد اصطکاکی', pressure_loss_kpa: 'افت فشار', base_head_m: 'هد پایه', design_head_m: 'هد طراحی', hydraulic_power_kw: 'توان هیدرولیکی', estimated_shaft_power_kw: 'توان محور تخمینی', active_sprinklers: 'تعداد اسپرینکلر فعال', discharge_per_sprinkler_lpm: 'دبی هر اسپرینکلر', minimum_pressure_at_k_bar: 'حداقل فشار K', sprinkler_flow_lpm: 'دبی اسپرینکلرها', total_with_hose_lpm: 'دبی کل با Hose Allowance', theoretical_storage_m3: 'ذخیره نظری', velocity_mps: 'سرعت هوا', area_m2: 'مساحت مقطع', hydraulic_diameter_m: 'قطر هیدرولیکی', raw_capacity_ah: 'ظرفیت خام باتری', design_capacity_ah: 'ظرفیت طراحی باتری', voltage_drop_v: 'افت ولتاژ', voltage_drop_percent: 'درصد افت ولتاژ', end_voltage_v: 'ولتاژ انتهای خط', npsha_m: 'NPSHa', estimated_detectors: 'تعداد تقریبی دتکتور', legacy_guide_area_per_device_m2: 'پوشش مرجع قدیمی هر تجهیز'
   }
-  return labels[key] || key.replaceAll('_', ' ')
+  return labels[key] || key.split('_').join(' ')
 }
 
 export default function ResultPanel({ data }: { data: CalculationResponse | null }) {
