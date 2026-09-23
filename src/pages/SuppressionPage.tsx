@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Droplets, Flame, Gauge, Network, Pump, Waves } from 'lucide-react'
+import { Droplets, Flame, Gauge, Network, CircleGauge, Waves } from 'lucide-react'
 import Field from '../components/Field'
 import ResultPanel from '../components/ResultPanel'
 import { calculate } from '../lib/api'
@@ -9,7 +9,7 @@ import type { CalculationResponse, Project } from '../types'
 const tabs = [
   ['sprinkler','اسپرینکلر',Droplets],
   ['hazen','افت فشار لوله',Network],
-  ['pump','پمپ آتش‌نشانی',Pump],
+  ['pump','پمپ آتش‌نشانی',CircleGauge],
   ['npsh','NPSH',Waves],
 ] as const
 
