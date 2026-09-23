@@ -1,0 +1,16 @@
+import { useEffect, useState } from 'react'
+import { BookOpenCheck, FileWarning, Filter, ShieldCheck } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import type { StandardSource } from '../types'
+import StatusPill from '../components/StatusPill'
+
+export default function StandardsPage(){
+ const [sources,setSources]=useState<StandardSource[]>([]),[rules,setRules]=useState<any[]>([]),[filter,setFilter]=useState('all')
+ useEffect(()=>{Promise.all([supabase.from('standard_sources').select('*').order('code'),supabase.from('calculation_rules').select('*,standard_sources(code,title,edition)').order('module_key')]).then(([s,r])=>{if(s.data)setSources(s.data as StandardSource[]);if(r.data)setRules(r.data)})},[])
+ const filtered=filter==='all'?sources:sources.filter(x=>x.verification_status===filter)
+ return <div className="page-stack"><div className="page-title-row"><div><span className="eyebrow">RULE REGISTRY</span><h1>استانداردها و قواعد محاسباتی</h1><p>منبع، ویرایش، حوزه کاربرد و وضعیت اعتبارسنجی هر قاعده مستقل از کد نرم‌افزار ثبت می‌شود.</p></div><div className="registry-badge"><ShieldCheck/> Versioned Registry</div></div>
+ <div className="registry-summary"><div><BookOpenCheck/><span>منابع ثبت‌شده</span><strong>{sources.length}</strong></div><div><ShieldCheck/><span>Verified</span><strong>{sources.filter(x=>x.verification_status==='verified').length}</strong></div><div><FileWarning/><span>Needs Review</span><strong>{sources.filter(x=>x.verification_status==='needs_review').length}</strong></div></div>
+ <section className="panel"><div className="panel-head"><div><span className="eyebrow">SOURCES</span><h2>کاتالوگ منابع</h2></div><label className="filter-select"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">همه</option><option value="verified">Verified</option><option value="catalogued">Catalogued</option><option value="needs_review">Needs Review</option><option value="superseded">Superseded</option></select></label></div><div className="data-table-wrap"><table className="data-table"><thead><tr><th>کد</th><th>عنوان</th><th>ویرایش</th><th>مرجع</th><th>نوع</th><th>وضعیت</th></tr></thead><tbody>{filtered.map(s=><tr key={s.id}><td><code>{s.code}</code></td><td><strong>{s.title}</strong>{s.notes&&<small>{s.notes}</small>}</td><td>{s.edition||'—'}</td><td>{s.jurisdiction||'—'}</td><td>{s.source_kind}</td><td><StatusPill tone={s.verification_status==='verified'?'ok':s.verification_status==='needs_review'?'warn':'info'}>{s.verification_status}</StatusPill></td></tr>)}</tbody></table></div></section>
+ <section className="panel"><div className="panel-head"><div><span className="eyebrow">CALCULATION RULES</span><h2>قواعد نسخه‌دار</h2></div></div>{rules.length===0?<div className="empty-inline">قاعده فعال نهایی هنوز قفل نشده است. این رفتار عمدی است تا معیارهای تأییدنشده به‌صورت عدد پنهان وارد موتور نشوند.</div>:<div className="rule-list">{rules.map(r=><div className="rule-row" key={r.id}><div><strong>{r.title}</strong><span>{r.module_key} / rev {r.revision}</span></div><code>{r.formula_expression||'—'}</code><StatusPill tone={r.validation_state==='locked'?'ok':'warn'}>{r.validation_state}</StatusPill></div>)}</div>}</section>
+ </div>
+}
