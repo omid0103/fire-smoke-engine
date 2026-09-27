@@ -1,10 +1,17 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Activity, ArrowLeft, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import EngineeringLogo from '../components/EngineeringLogo'
-import { supabase } from '../lib/supabase'
+import { latinDigits, normalizeMobile, authMessage } from '../lib/phone'
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../lib/supabase'
 
 export default function LoginPage() {
+  const [phoneEnabled,setPhoneEnabled]=useState<boolean|null>(null)
+  useEffect(()=>{const controller=new AbortController();fetch(`${SUPABASE_URL}/auth/v1/settings`,{headers:{apikey:SUPABASE_PUBLISHABLE_KEY},signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(s=>setPhoneEnabled(s.external?.phone===true)).catch(()=>{});return()=>controller.abort()},[])
+  const [method,setMethod]=useState<'phone'|'email'>('phone')
+  const [phone,setPhone]=useState(''),[sentPhone,setSentPhone]=useState(''),[otp,setOtp]=useState(''),[retryAt,setRetryAt]=useState(0),[now,setNow]=useState(Date.now())
+  useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t)},[])
+  const remaining=Math.max(0,Math.ceil((retryAt-now)/1000))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<'login'|'signup'>('login')
@@ -15,6 +22,13 @@ export default function LoginPage() {
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setMessage('')
     try {
+      if(method==='phone'){
+        if(sentPhone){
+          const token=latinDigits(otp).trim();if(!/^\d{6,10}$/.test(token))throw new Error('کد پیامک‌شده را کامل وارد کنید.');
+          const {data,error}=await supabase.auth.verifyOtp({phone:sentPhone,token,type:'sms'});if(error)throw error;if(!data.session)throw new Error('نشست ورود ایجاد نشد؛ دوباره تلاش کنید.');setOtp('');setAuthed(true);return;
+        }
+        await sendCode();return;
+      }
       const res = mode === 'login'
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password })
@@ -22,10 +36,12 @@ export default function LoginPage() {
       if (res.data.session) setAuthed(true)
       else setMessage('حساب ایجاد شد. در صورت فعال بودن تأیید ایمیل، لینک ارسال‌شده را بررسی کنید.')
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'خطای ورود')
+      setMessage(authMessage(e))
     } finally { setBusy(false) }
   }
 
+  async function sendCode(){if(Date.now()<retryAt)throw new Error('برای ارسال مجدد صبر کنید.');const normalized=normalizeMobile(phone);const {error}=await supabase.auth.signInWithOtp({phone:normalized,options:{shouldCreateUser:true}});if(error)throw error;setSentPhone(normalized);setOtp('');setRetryAt(Date.now()+60000);setMessage('درخواست ارسال کد پذیرفته شد؛ کد پیامک‌شده را وارد کنید.')}
+  async function resend(){setBusy(true);setMessage('');try{await sendCode()}catch(e){setMessage(authMessage(e))}finally{setBusy(false)}}
   if (authed) return <Navigate to="/" replace />
   return (
     <div className="login-page">
@@ -56,14 +72,22 @@ export default function LoginPage() {
         <form className="login-card" onSubmit={submit}>
           <div className="login-card__head">
             <span className="eyebrow">SECURE ACCESS</span>
-            <h2>{mode === 'login' ? 'ورود به سامانه' : 'ایجاد حساب'}</h2>
+            <h2>{method==='phone'?'ورود / ساخت حساب با موبایل':mode === 'login' ? 'ورود به سامانه' : 'ایجاد حساب'}</h2>
             <p>دسترسی به محیط محاسبات مهندسی رابین آذر</p>
           </div>
+          <div className="segmented-tabs"><button type="button" disabled={busy} className={method==='phone'?'active':''} onClick={()=>{setMethod('phone');setMessage('')}}>شماره موبایل</button><button type="button" disabled={busy} className={method==='email'?'active':''} onClick={()=>{setMethod('email');setMessage('')}}>ایمیل و رمز عبور</button></div>
+          {method==='phone'?<>
+          {phoneEnabled===false&&<div role="status" className="login-message">ورود پیامکی در انتظار فعال‌سازی سرویس ارسال است. فعلاً از ورود ایمیلی استفاده کنید.</div>}
+          <label className="login-input"><span>شماره موبایل</span><div><input type="tel" autoComplete="tel" inputMode="tel" placeholder="09121234567" value={phone} disabled={busy||!!sentPhone} onChange={e=>setPhone(e.target.value)} required dir="ltr"/></div></label>
+          {sentPhone&&<><label className="login-input"><span>کد یک‌بارمصرف</span><div><input type="text" autoComplete="one-time-code" inputMode="numeric" value={otp} onChange={e=>setOtp(latinDigits(e.target.value).replace(/[^0-9]/g,''))} maxLength={10} required disabled={busy} dir="ltr"/></div></label><div className="report-actions"><button type="button" className="text-button" disabled={busy||remaining>0} onClick={resend}>{remaining>0?`ارسال مجدد در ${remaining} ثانیه`:'ارسال مجدد کد'}</button><button type="button" className="text-button" disabled={busy} onClick={()=>{setSentPhone('');setOtp('');setMessage('')}}>ویرایش شماره</button></div></>}
+          <p className="login-disclaimer">اگر حسابی با این شماره ندارید، پس از تأیید کد ساخته می‌شود. حساب موبایلی به‌صورت خودکار با حساب ایمیلی قبلی ادغام نمی‌شود.</p>
+          </>:<>
           <label className="login-input"><span>ایمیل</span><div><Mail size={18}/><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required dir="ltr"/></div></label>
           <label className="login-input"><span>رمز عبور</span><div><LockKeyhole size={18}/><input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} dir="ltr"/></div></label>
-          {message && <div className="login-message">{message}</div>}
-          <button className="primary-button large" disabled={busy}>{busy ? 'در حال پردازش…' : <>{mode === 'login' ? 'ورود به سامانه' : 'ثبت حساب'}<ArrowLeft size={18}/></>}</button>
-          <button type="button" className="text-button" onClick={()=>setMode(mode==='login'?'signup':'login')}>{mode==='login'?'حساب ندارید؟ ایجاد حساب':'حساب دارید؟ ورود'}</button>
+          </>}
+          {message && <div role="status" aria-live="polite" className="login-message">{message}</div>}
+          <button className="primary-button large" disabled={busy||(method==='phone'&&phoneEnabled===false)}>{busy ? 'در حال پردازش…' : <>{method==='phone'?(sentPhone?'تأیید کد و ورود':'دریافت کد یک‌بارمصرف'):mode === 'login' ? 'ورود به سامانه' : 'ثبت حساب'}<ArrowLeft size={18}/></>}</button>
+          {method==='email'&&<button type="button" className="text-button" onClick={()=>setMode(mode==='login'?'signup':'login')}>{mode==='login'?'حساب ندارید؟ ایجاد حساب':'حساب دارید؟ ورود'}</button>}
           <div className="login-disclaimer">این سامانه ابزار کمک‌مهندسی است. تأیید نهایی طراحی وابسته به استاندارد جاری، ضوابط مرجع ذی‌صلاح و بازبینی متخصص است.</div>
         </form>
       </section>

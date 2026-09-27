@@ -1,0 +1,4 @@
+import ts from 'typescript';import {readFile,writeFile,unlink} from 'node:fs/promises';import assert from 'node:assert/strict';
+const path='tests/.phone-test.mjs';await writeFile(path,ts.transpileModule(await readFile('src/lib/phone.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText);const {normalizeMobile,latinDigits,authMessage}=await import('./.phone-test.mjs');
+for(const p of ['09121234567','۰۹۱۲۱۲۳۴۵۶۷','٠٩١٢١٢٣٤٥٦٧','+989121234567','00989121234567','989121234567','0912 123 4567'])assert.equal(normalizeMobile(p),'+989121234567');
+for(const p of ['','9121234567','0912123456','+12025550123','09121234567<script>','+98+989121234567'])assert.throws(()=>normalizeMobile(p));assert.equal(latinDigits('۱۲٣456'),'123456');assert.match(authMessage({code:'phone_provider_disabled'}),/فعال نشده/);await unlink(path);console.log('15 phone validation assertions passed');
