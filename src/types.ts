@@ -17,6 +17,7 @@ export type Project = {
 }
 
 export type CalculationResponse = {
+  persistence?: { saved: boolean; message: string }
   ok: boolean
   module: string
   engine_version: string

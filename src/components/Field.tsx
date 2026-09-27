@@ -1,4 +1,4 @@
-export default function Field({ label, unit, value, onChange, type = 'number', min, max, step = 'any', placeholder, required = false }: {
+export default function Field({ label, unit, value, onChange, type = 'number', min, max, step = 'any', placeholder, required = !label.includes("optional") }: {
   label: string
   unit?: string
   value: string | number

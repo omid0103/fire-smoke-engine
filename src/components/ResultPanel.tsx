@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, Copy, ShieldCheck } from 'lucide-react'
 import { formatNumber } from '../lib/persian'
 import type { CalculationResponse } from '../types'
 
-function prettyKey(key: string) {
+export function prettyKey(key: string) {
   const labels: Record<string, string> = {
     volume_m3: 'حجم', normal_exhaust_cfm: 'دبی تهویه عادی', fire_exhaust_cfm: 'دبی تخلیه حریق', design_exhaust_cfm: 'دبی طراحی', makeup_air_cfm: 'هوای جبرانی', exhaust_shaft_area_m2: 'سطح شفت تخلیه', makeup_shaft_area_m2: 'سطح شفت جبرانی', exhaust_damper_area_m2: 'سطح دمپر دود', two_fan_50pct_each_cfm: 'ظرفیت هر فن در آرایش 2×50%', friction_head_m: 'افت هد اصطکاکی', pressure_loss_kpa: 'افت فشار', base_head_m: 'هد پایه', design_head_m: 'هد طراحی', hydraulic_power_kw: 'توان هیدرولیکی', estimated_shaft_power_kw: 'توان محور تخمینی', active_sprinklers: 'تعداد اسپرینکلر فعال', discharge_per_sprinkler_lpm: 'دبی هر اسپرینکلر', minimum_pressure_at_k_bar: 'حداقل فشار K', sprinkler_flow_lpm: 'دبی اسپرینکلرها', total_with_hose_lpm: 'دبی کل با Hose Allowance', theoretical_storage_m3: 'ذخیره نظری', velocity_mps: 'سرعت هوا', area_m2: 'مساحت مقطع', hydraulic_diameter_m: 'قطر هیدرولیکی', raw_capacity_ah: 'ظرفیت خام باتری', design_capacity_ah: 'ظرفیت طراحی باتری', voltage_drop_v: 'افت ولتاژ', voltage_drop_percent: 'درصد افت ولتاژ', end_voltage_v: 'ولتاژ انتهای خط', npsha_m: 'NPSHa', estimated_detectors: 'تعداد تقریبی دتکتور', legacy_guide_area_per_device_m2: 'پوشش مرجع قدیمی هر تجهیز'
   }
@@ -33,15 +33,18 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
         </div>
       </div>
 
+      {data.persistence && <div role="status" className={data.persistence.saved ? "ok-banner" : "warning-item"}>{data.persistence.message}</div>}
       <div className="result-grid">
         {Object.entries(c.results).map(([key, value]) => (
           <div className="result-cell" key={key}>
-            <span>{prettyKey(key)}</span>
-            <strong>{typeof value === 'number' ? formatNumber(value, 4) : String(value)}</strong>
+            <span>{prettyKey(key)} <small dir="ltr">{unitFor(key)}</small></span>
+            <strong>{typeof value === 'number' ? formatNumber(value, 4) : typeof value === 'object' ? JSON.stringify(value) : String(value)}</strong>
           </div>
         ))}
       </div>
 
+      {c.inputs && <details className="trace-box"><summary>ورودی‌های این نتیجه (پیش از تغییر فرم)</summary><pre dir="ltr">{JSON.stringify(c.inputs,null,2)}</pre></details>}
+      {c.zones && <details className="trace-box"><summary>جزئیات خروجی زون‌ها</summary><pre dir="ltr">{JSON.stringify(c.zones,null,2)}</pre></details>}
       {warnings.length > 0 ? (
         <div className="warning-stack">
           {warnings.map((w, i) => <div className="warning-item" key={i}><AlertTriangle size={17}/><span>{w}</span></div>)}
@@ -61,3 +64,5 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
     </div>
   )
 }
+
+export function unitFor(key:string){ const units:Record<string,string>={cfm:"CFM",m3_s:"m³/s",m3:"m³",m2:"m²",mps:"m/s",lpm:"L/min",kpa:"kPa",pa:"Pa",bar:"bar",kw:"kW",kg_s:"kg/s",kg_m3:"kg/m³",percent:"%",ah:"Ah",v:"V",m:"m",c:"°C",n:"N"};return Object.entries(units).find(([suffix])=>key.endsWith("_"+suffix))?.[1]||"" }
