@@ -26,3 +26,12 @@
 - Existing alarm coverage legacy constants remain preliminary and are not validated design rules.
 
 Do not represent this release as a complete validated design suite.
+
+# Update 0.5.0
+- Added independent steady hydraulic graph solver: branched/looped pipes, fixed total-head supplies, elevations, Hazen-Williams resistance, pressure-dependent sprinkler emitters and fixed standpipe demands. Source head is an input; automated remote-area selection and pump-curve solving remain outside scope.
+- Added steady pressure graph solver: floors/shaft paths, fixed pressure boundaries, signed mechanical injection, power-law leakage, signed wind/stack offsets. Assumes volumetric continuity / common reference density; not full thermal or large-opening two-way transport.
+- Damped Newton iteration rejects disconnected, singular and non-convergent models. Outputs unrounded node/edge values, boundary supply and numerical mass residual.
+- Editable network tables, per-node project acceptance limits, required design-basis description, persisted reports with tabular outputs and model references.
+- 55 assertions include independent single-pipe bisection, analytic orifice pressure, parallel pipes, symmetric loop, reverse flow, zero flow, offsets and topology errors.
+- TypeScript check on network solver and production UI build pass.
+- No assertion of equivalence to EPANET/CONTAM certification. Independent whole-building validation, regulatory adoption checks, manufacturer curves, and authenticated end-to-end tests remain release gates for final design approval.

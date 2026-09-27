@@ -55,6 +55,7 @@ export type DesignRun = {
   result_json: Record<string, unknown>
   warnings: string[]
   calculation_trace: string[]
+  standards_snapshot?: { source_profile?: string | null }[]
   calculation_hash: string | null
   created_at: string
 }

@@ -1,8 +1,10 @@
 import {readFile,writeFile,unlink} from 'node:fs/promises';
 import ts from 'typescript';
 import assert from 'node:assert/strict';
+const net=await readFile('supabase/functions/calculate/network.ts','utf8');
+await writeFile('tests/.network-test.mjs',ts.transpileModule(net,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
 const src=await readFile('supabase/functions/calculate/index.ts','utf8');
-const js=ts.transpileModule(src.replace('import "jsr:@supabase/functions-js/edge-runtime.d.ts";','').replace('Deno.serve(handler);',''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
+const js=ts.transpileModule(src.replace('./network.ts','./.network-test.mjs').replace('import "jsr:@supabase/functions-js/edge-runtime.d.ts";','').replace('Deno.serve(handler);',''),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
 await writeFile('tests/.engine-test.mjs',js);
 const {handler}=await import('./.engine-test.mjs');
 let checks=0;
@@ -25,4 +27,22 @@ await run('fire_pump',{flow_lpm:600,efficiency_percent:101},400);
 for(const v of ['',null,false,{},-1,0])await run('duct_velocity',{flow_cfm:v,width_mm:500,height_mm:500},400);
 await run('sprinkler_preliminary',{density_lpm_m2:8.1,design_area_m2:139,coverage_per_sprinkler_m2:12,k_metric:80,active_sprinkler_count:2},400);
 await run('unknown',{},400);
-console.log(`${checks} engine assertions passed`);await unlink('tests/.engine-test.mjs');
+// Independent conservation and closed-form network cases.
+const airSimple={nodes:[{id:'O',fixed:0,demand:0},{id:'A',demand:-0.6,min:25,max:60}],edges:[{id:'e',from:'A',to:'O',coefficient:0.085,exponent:0.5,offset_pa:0}]};
+a=await run('airflow_network',airSimple);near(a.results.nodes[1].pressure_pa,(0.6/0.085)**2,0.001);near(a.results.edges[0].flow_m3_s,0.6,1e-7);
+a=await run('airflow_network',{...airSimple,edges:[{...airSimple.edges[0],offset_pa:10}]});near(a.results.nodes[1].pressure_pa,(0.6/0.085)**2-10,0.001);
+a=await run('airflow_network',{...airSimple,nodes:[airSimple.nodes[0],{id:'A',demand:0.6}]});near(a.results.nodes[1].pressure_pa,-((0.6/0.085)**2),0.001);
+a=await run('airflow_network',{nodes:[{id:'O',fixed:0,demand:0},{id:'A',demand:0}],edges:airSimple.edges});near(a.results.nodes[1].pressure_pa,0,1e-7);
+const waterSimple={nodes:[{id:'S',fixed:50,elevation_m:0,demand:0},{id:'A',elevation_m:10,demand:0,k_metric:80,min:1}],edges:[{id:'p',from:'S',to:'A',length_m:30,diameter_mm:32,c_factor:120}]};
+a=await run('hydraulic_network',waterSimple);
+let lo=0,hi=50;for(let i=0;i<100;i++){const h=(lo+hi)/2,q=80*Math.sqrt(h*0.0980665),loss=10.67*30*(q/60000)**1.852/(120**1.852*0.032**4.87);if(h+10+loss>50)hi=h;else lo=h;}
+near(a.results.nodes[1].pressure_bar,(lo+hi)/2*0.0980665,1e-5);
+near(a.results.edges[0].flow_lpm,a.results.nodes[1].discharge_lpm,1e-4);
+const parallel={...waterSimple,edges:[...waterSimple.edges,{...waterSimple.edges[0],id:'p2'}]};a=await run('hydraulic_network',parallel);near(a.results.edges[0].flow_lpm,a.results.edges[1].flow_lpm,1e-5);near(a.results.edges[0].flow_lpm*2,a.results.nodes[1].discharge_lpm,1e-4);
+const loop={nodes:[...waterSimple.nodes,{id:'B',elevation_m:10,demand:0,k_metric:80,min:1}],edges:[waterSimple.edges[0],{...waterSimple.edges[0],id:'p2',to:'B'},{...waterSimple.edges[0],id:'link',from:'A',to:'B'}]};a=await run('hydraulic_network',loop);near(a.results.nodes[1].pressure_bar,a.results.nodes[2].pressure_bar,1e-5);near(a.results.edges[2].flow_lpm,0,1e-4);
+await run('airflow_network',{...airSimple,nodes:[...airSimple.nodes,{id:'disconnected',demand:0}]},400);
+await run('airflow_network',{...airSimple,nodes:[airSimple.nodes[1]]},400);
+await run('airflow_network',{...airSimple,edges:[{...airSimple.edges[0],coefficient:0}]},400);
+await run('hydraulic_network',{...waterSimple,nodes:[...waterSimple.nodes,{...waterSimple.nodes[1]}]},400);
+await run('hydraulic_network',{...waterSimple,edges:[{...waterSimple.edges[0],to:'missing'}]},400);
+console.log(`${checks} engine assertions passed`);await unlink('tests/.engine-test.mjs');await unlink('tests/.network-test.mjs');

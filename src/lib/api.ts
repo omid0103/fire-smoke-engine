@@ -3,6 +3,8 @@ import { supabase } from './supabase'
 import type { CalculationResponse, Project } from '../types'
 
 const moduleMap: Record<string, string> = {
+  hydraulic_network: 'sprinkler_hydraulics',
+  airflow_network: 'stair_pressurization',
   atrium_axisymmetric: 'atrium_smoke',
   pressurization_single_zone: 'stair_pressurization',
   parking_smoke: 'parking_smoke',

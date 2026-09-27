@@ -1,3 +1,4 @@
+import EngineeringValues from './EngineeringValues'
 import { AlertTriangle, CheckCircle2, Copy, ShieldCheck } from 'lucide-react'
 import { formatNumber } from '../lib/persian'
 import type { CalculationResponse } from '../types'
@@ -35,7 +36,7 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
 
       {data.persistence && <div role="status" className={data.persistence.saved ? "ok-banner" : "warning-item"}>{data.persistence.message}</div>}
       <div className="result-grid">
-        {Object.entries(c.results).map(([key, value]) => (
+        {Object.entries(c.results).filter(([,value])=>typeof value!=='object').map(([key, value]) => (
           <div className="result-cell" key={key}>
             <span>{prettyKey(key)} <small dir="ltr">{unitFor(key)}</small></span>
             <strong>{typeof value === 'number' ? formatNumber(value, 4) : typeof value === 'object' ? JSON.stringify(value) : String(value)}</strong>
@@ -43,6 +44,7 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
         ))}
       </div>
 
+      {Object.entries(c.results).filter(([,value])=>value && typeof value==='object').map(([key,value])=><details open className="trace-box" key={key}><summary>{prettyKey(key)}</summary><EngineeringValues data={value}/></details>)}
       {c.inputs && <details className="trace-box"><summary>ورودی‌های این نتیجه (پیش از تغییر فرم)</summary><pre dir="ltr">{JSON.stringify(c.inputs,null,2)}</pre></details>}
       {c.zones && <details className="trace-box"><summary>جزئیات خروجی زون‌ها</summary><pre dir="ltr">{JSON.stringify(c.zones,null,2)}</pre></details>}
       {warnings.length > 0 ? (

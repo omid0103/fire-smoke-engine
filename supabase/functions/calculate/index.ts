@@ -1,3 +1,4 @@
+import { network } from "./network.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 type Json = Record<string, unknown>;
@@ -99,6 +100,8 @@ export const handler=async(req:Request)=>{
   const body=await req.json() as {module?:string,input?:Json}; const m=body.module??"", input=body.input??{}; let c:any;
   if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("input must be an object");
   switch(m){
+   case "hydraulic_network":c=network(input,false);break;
+   case "airflow_network":c=network(input,true);break;
    case "atrium_axisymmetric":c=atrium(input);break;
    case "pressurization_single_zone":c=pressure(input);break;
    case "parking_smoke":c=parkingOne(input);break;
@@ -114,7 +117,7 @@ export const handler=async(req:Request)=>{
    default:throw new Error("Unsupported module");
   }
   assertFinite(c);
-  const engine_version="0.4.0",input_hash=await digest({m,input,engine_version});
+  const engine_version="0.5.0",input_hash=await digest({m,input,engine_version});
   return new Response(JSON.stringify({ok:true,module:m,engine_version,input_hash,calculation:{...c,inputs:input}}),{headers});
  }catch(e){return new Response(JSON.stringify({ok:false,error:e instanceof Error?e.message:String(e)}),{status:400,headers})}
 };
