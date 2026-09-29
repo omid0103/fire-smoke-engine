@@ -25,6 +25,12 @@ reset role;
 select set_config('request.jwt.claim.sub','cb5b4200-5b72-4ef9-b4d5-6dc714db2e26',true);
 set local role authenticated;
 select pg_temp.check_ok(public.has_subscription(),'trial active');
+insert into public.engineering_projects(id,organization_id,name,created_by) values('11111111-1111-4111-8111-111111111111',public.bootstrap_default_organization(),'QA rolled back',auth.uid());
+insert into public.design_runs(id,project_id,module_key,engine_version,status,input_json,result_json,created_by) values('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','parking_smoke','0.5.1','calculated','{"flow_cfm":12000}','{"velocity_mps":11.327}',auth.uid());
+select pg_temp.check_ok((select result_json->>'velocity_mps'='11.327' from public.design_runs where id='22222222-2222-4222-8222-222222222222'),'saved result reopens');
+update public.engineering_projects set name='QA edited' where id='11111111-1111-4111-8111-111111111111';
+select pg_temp.check_ok((select name='QA edited' from public.engineering_projects where id='11111111-1111-4111-8111-111111111111'),'active project edit');
+
 select public.billing('create_order','{"plan_code":"monthly","amount_toman":1,"months":12}');
 select pg_temp.check_ok((select count(*)=1 and min(amount_toman)=690000 and min(months)=1 from public.subscription_orders where user_id=auth.uid()),'server price and duration');
 select public.billing('create_order','{"plan_code":"monthly"}');
@@ -36,6 +42,8 @@ create temp table billing_test_before as select * from public.subscriptions wher
 create temp table billing_test_order as select id from public.subscription_orders where user_id='cb5b4200-5b72-4ef9-b4d5-6dc714db2e26';
 grant select on billing_test_before,billing_test_order to authenticated;
 set local role authenticated;
+select pg_temp.check_ok(not exists(select 1 from public.engineering_projects where id='11111111-1111-4111-8111-111111111111'),'other tenant project invisible even to billing admin');
+select pg_temp.check_ok(not exists(select 1 from public.design_runs where id='22222222-2222-4222-8222-222222222222'),'other tenant report invisible');
 select public.billing('approve_order',jsonb_build_object('order_id',(select id from billing_test_order),'note','verified test','bank_reference','TEST-BANK-UNIQUE-001'));
 select public.billing('approve_order',jsonb_build_object('order_id',(select id from billing_test_order),'note','repeat test','bank_reference','TEST-BANK-UNIQUE-001'));
 reset role;
@@ -55,6 +63,14 @@ select public.billing('revoke_subscription','{"user_id":"cb5b4200-5b72-4ef9-b4d5
 select set_config('request.jwt.claim.sub','cb5b4200-5b72-4ef9-b4d5-6dc714db2e26',true);
 set local role authenticated;
 select pg_temp.check_ok(not public.has_subscription(),'expired denied');
+select pg_temp.check_ok(exists(select 1 from public.design_runs where id='22222222-2222-4222-8222-222222222222'),'expired report remains readable');
+do $$ declare changed integer; begin
+ update public.engineering_projects set name='EXPIRED WRITE' where id='11111111-1111-4111-8111-111111111111';get diagnostics changed=row_count;
+ perform pg_temp.check_ok(changed=0,'expired update denied');
+ begin insert into public.engineering_projects(organization_id,name) values(public.bootstrap_default_organization(),'EXPIRED INSERT'); raise exception 'FAILED expired insert'; exception when insufficient_privilege then null; end;
+ begin insert into public.design_runs(project_id,module_key,engine_version) values('11111111-1111-4111-8111-111111111111','parking_smoke','0.5.1'); raise exception 'FAILED expired report insert'; exception when insufficient_privilege then null; end;
+end $$;
+
 select pg_temp.check_ok((select count(*)=2 from public.subscription_orders),'own order history retained');
 reset role;
 rollback;

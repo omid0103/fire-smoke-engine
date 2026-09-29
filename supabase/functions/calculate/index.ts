@@ -88,7 +88,8 @@ function npsha(input:Json){
 }
 
 function alarmCoverage(input:Json){
- const A=pos(input.floor_area_m2,"floor_area_m2"),t=String(input.detector_type??"smoke"),h=num(input.ceiling_height_m,"ceiling_height_m",3),guide=t==="heat"?56.3:112;
+ const A=pos(input.floor_area_m2,"floor_area_m2"),t=String(input.detector_type??"smoke"),h=pos(input.ceiling_height_m,"ceiling_height_m",3),guide=t==="heat"?56.3:112;
+ if(!["smoke","heat"].includes(t))throw new Error("نوع دتکتور نامعتبر است");
  return {status:"warning",results:{estimated_detectors:Math.ceil(A/guide),legacy_guide_area_per_device_m2:guide,ceiling_height_m:h},warnings:["اعداد پوشش این ماژول فقط از راهنمای آموزشی قدیمی آپلودشده استخراج شده‌اند و معیار طراحی جاری محسوب نمی‌شوند.","جانمایی، فاصله، ارتفاع سقف، موانع و نوع دتکتور فقط پس از اعتبارسنجی BS 5839-1 جاری و الزامات ایران/AHJ نهایی شود."],trace:["N_est = ceil(floor area / legacy guide area)"],source_profile:"Legacy uploaded BS 5839 educational guide; preliminary only."}
 }
 
@@ -97,7 +98,16 @@ export const handler=async(req:Request)=>{
  if(req.method==="OPTIONS") return new Response("ok",{headers});
  try{
   if(req.method!=="POST") return new Response(JSON.stringify({ok:false,error:"POST required"}),{status:405,headers});
-  const body=await req.json() as {module?:string,input?:Json}; const m=body.module??"", input=body.input??{}; let c:any;
+  const reader=req.body?.getReader();
+  if(!reader)throw new Error("JSON body required");
+  const chunks:Uint8Array[]=[];let size=0;
+  while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>262144){await reader.cancel();return new Response(JSON.stringify({ok:false,error:"Request exceeds 256 KiB"}),{status:413,headers});}chunks.push(value);}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  const body=JSON.parse(new TextDecoder().decode(bytes)) as {module?:string,input?:Json};
+  if(!body||typeof body!=="object"||Array.isArray(body))throw new Error("JSON object required");
+  const stack:Array<[unknown,number]>=[[body,0]];
+  while(stack.length){const [value,depth]=stack.pop()!;if(depth>16)throw new Error("Input nesting exceeds 16 levels");if(value&&typeof value==="object")for(const child of Object.values(value))stack.push([child,depth+1]);}
+   const m=body.module??"", input=body.input??{}; let c:any;
   if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("input must be an object");
   switch(m){
    case "hydraulic_network":c=network(input,false);break;
@@ -117,7 +127,7 @@ export const handler=async(req:Request)=>{
    default:throw new Error("Unsupported module");
   }
   assertFinite(c);
-  const engine_version="0.5.0",input_hash=await digest({m,input,engine_version});
+  const engine_version="0.5.1",input_hash=await digest({m,input,engine_version});
   return new Response(JSON.stringify({ok:true,module:m,engine_version,input_hash,calculation:{...c,inputs:input}}),{headers});
  }catch(e){return new Response(JSON.stringify({ok:false,error:e instanceof Error?e.message:String(e)}),{status:400,headers})}
 };

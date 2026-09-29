@@ -45,4 +45,28 @@ await run('airflow_network',{...airSimple,nodes:[airSimple.nodes[1]]},400);
 await run('airflow_network',{...airSimple,edges:[{...airSimple.edges[0],coefficient:0}]},400);
 await run('hydraulic_network',{...waterSimple,nodes:[...waterSimple.nodes,{...waterSimple.nodes[1]}]},400);
 await run('hydraulic_network',{...waterSimple,edges:[{...waterSimple.edges[0],to:'missing'}]},400);
+// Coverage for every supported calculator; values derived from independent arithmetic.
+a=await run('parking_smoke',zone);near(a.results.volume_m3,6405,0);near(a.results.design_exhaust_cfm,38000,0);
+a=await run('hazen_williams',{flow_lpm:600,length_m:100,diameter_mm:100,c_factor:120});near(a.results.friction_head_m,10.67*100*0.01**1.852/(120**1.852*0.1**4.87),0.0001);
+a=await run('fire_alarm_battery',{standby_current_a:0.5,standby_hours:24,alarm_current_a:2,alarm_hours:0.5,margin_percent:25});near(a.results.raw_capacity_ah,13,0);near(a.results.design_capacity_ah,16.25,0);
+a=await run('voltage_drop',{one_way_length_m:100,current_a:1,cable_area_mm2:2.5});near(a.results.voltage_drop_v,1.4,0);near(a.results.end_voltage_v,22.6,0);
+a=await run('npsha',{static_suction_head_m:2,suction_loss_m:1});near(a.results.npsha_m,(101325-2340)/(1000*9.80665)+1,0.001);
+for(const [detector_type,expected] of [['smoke',3],['heat',4]]){a=await run('fire_alarm_preliminary',{floor_area_m2:225,detector_type,ceiling_height_m:3});near(a.results.estimated_detectors,expected,0);}
+await run('fire_alarm_preliminary',{floor_area_m2:100,detector_type:'typo'},400);
+await run('fire_alarm_preliminary',{floor_area_m2:100,ceiling_height_m:-3},400);
+// Analytic sweep of different air exponents, directions and prescribed flow.
+for(const exponent of [0.5,0.65,1])for(const flow of [-0.2,0.05,0.6]){
+ const model={nodes:[{id:'O',fixed:0,demand:0},{id:'A',demand:-flow}],edges:[{id:'e',from:'A',to:'O',coefficient:0.085,exponent}]};
+ a=await run('airflow_network',model);near(a.results.nodes[1].pressure_pa,Math.sign(flow)*(Math.abs(flow)/0.085)**(1/exponent),0.0002);
+ near(a.results.edges[0].flow_m3_s,flow,1e-7);
+ const reversed={...model,edges:[{...model.edges[0],from:'O',to:'A'}]};
+ b=await run('airflow_network',reversed);near(b.results.nodes[1].pressure_pa,a.results.nodes[1].pressure_pa,0.0002);near(b.results.edges[0].flow_m3_s,-flow,1e-7);
+}
+// Protocol and resource bounds, including bodies without a Content-Length header.
+for(const [method,body,status] of [['GET',undefined,405],['OPTIONS',undefined,200],['POST','{',400],['POST','null',400],['POST','[]',400],['POST','x'.repeat(262145),413],['POST',JSON.stringify({module:'duct_velocity',input:[]}),400]]){
+ const response=await handler(new Request('https://test',{method,body}));assert.equal(response.status,status);checks++;
+}
+let nested={};for(let i=0;i<20;i++)nested={child:nested};await run('duct_velocity',{flow_cfm:10,width_mm:100,height_mm:100,nested},400);
+await run('duct_velocity',{flow_cfm:1e308,width_mm:1e-308,height_mm:1e-308},400);
+for(const invalid of ['NaN','Infinity',' ',true,[]])await run('npsha',{density_kg_m3:invalid},400);
 console.log(`${checks} engine assertions passed`);await unlink('tests/.engine-test.mjs');await unlink('tests/.network-test.mjs');
