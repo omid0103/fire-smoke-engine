@@ -1,0 +1,7 @@
+[functions.calculate]
+verify_jwt = true
+entrypoint = "./functions/calculate/server.ts"
+
+[functions.send-sms]
+verify_jwt = false
+entrypoint = "./functions/send-sms/index.ts"

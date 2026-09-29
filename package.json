@@ -8,7 +8,7 @@
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false",
-    "test": "node tests/engine.mjs && node tests/phone.mjs"
+    "test": "node tests/engine.mjs && node tests/phone.mjs && node tests/subscription.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

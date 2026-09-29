@@ -35,3 +35,17 @@ Do not represent this release as a complete validated design suite.
 - 55 assertions include independent single-pipe bisection, analytic orifice pressure, parallel pipes, symmetric loop, reverse flow, zero flow, offsets and topology errors.
 - TypeScript check on network solver and production UI build pass.
 - No assertion of equivalence to EPANET/CONTAM certification. Independent whole-building validation, regulatory adoption checks, manufacturer curves, and authenticated end-to-end tests remain release gates for final design approval.
+
+# Subscription release — 2026-09-29
+- Monthly 690,000 / quarterly 1,790,000 / annual 5,900,000 toman; one named engineer per subscription.
+- Prices and plan visibility are editable by billing administrators. Orders snapshot prices and calendar-month durations (Postgres timestamp arithmetic); changing a plan does not rewrite existing orders.
+- Public checkout remains OFF and bank instructions empty until the operator completes engineering acceptance and configures payment instructions. No gateway, automatic debit or simulated payment success.
+- Manual order -> user reports transfer details -> administrator reconciles actual bank statement and records unique bank transaction reference -> atomic activation. The same order or bank transaction cannot extend entitlement twice. One open order per user.
+- Trial invitation: administrator grants one 14-day trial per account, max 20 accounts; no self-service trial farming. Trial and paid renewals serialize per user.
+- Billing administrator is seeded only from the pre-existing internal Rabin organization owner. Organization-owner roles and editable user metadata do not grant billing administration.
+- Billing mutations run only through an authenticated, checked private function with an invoker public RPC wrapper. Direct client writes to plans/settings/orders/subscriptions/audit are revoked. Audit is intentionally inaccessible directly (RLS no policy); admin RPC exposes a bounded list.
+- Expired users retain reads of projects and stored reports. Database restrictive policies guard project/run inserts and updates. The deployed calculate entrypoint is **server.ts**, with RPC entitlement validation before the pure numerical handler. Never deploy index.ts as the server entrypoint.
+- New engineers can bootstrap their own workspace; no attachment to internal Rabin organization. Existing members and projects are preserved.
+- Verified: 55 numerical assertions + 15 phone assertions + 13 entitlement gate assertions; production TypeScript/build; transactional database tests for roles, tenant isolation, price tampering, duplicate order, trial reuse, renewal, duplicate bank reference rollback and expiry. All billing fixtures were rolled back.
+- Remaining go-live gates: bank destination/instructions supplied by owner, working SMS OTP, authenticated browser checkout/review/report journey, independent engineering validation described above. This release does not imply full engineering production certification.
+- Existing Supabase advisory: leaked password protection disabled (not introduced by billing). https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection

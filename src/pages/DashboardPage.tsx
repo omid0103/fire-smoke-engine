@@ -59,7 +59,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {noOrg && <section className="critical-banner"><ShieldAlert size={22}/><div><strong>فعال‌سازی اولیه سازمان</strong><span>این حساب هنوز عضو سازمان محاسباتی نیست. اگر اولین کاربر سامانه هستید، مالک اولیه را فعال کنید.</span></div><button className="primary-button" onClick={bootstrap} disabled={bootBusy}>{bootBusy?'در حال فعال‌سازی…':'فعال‌سازی مالک اولیه'}</button></section>}
+      {noOrg && <section className="critical-banner"><ShieldAlert size={22}/><div><strong>ایجاد فضای کار شخصی</strong><span>برای ذخیره پروژه‌ها، فضای کار مستقل حساب خود را ایجاد کنید.</span></div><button className="primary-button" onClick={bootstrap} disabled={bootBusy}>{bootBusy?'در حال فعال‌سازی…':'ایجاد فضای کار'}</button></section>}
 
       <div className="metric-grid four">
         <MetricCard icon={Building2} label="پروژه‌های ثبت‌شده" value={formatNumber(projects.length,0)} hint="آخرین پروژه‌های قابل دسترس"/>

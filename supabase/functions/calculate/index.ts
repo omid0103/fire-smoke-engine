@@ -121,7 +121,7 @@ export const handler=async(req:Request)=>{
   return new Response(JSON.stringify({ok:true,module:m,engine_version,input_hash,calculation:{...c,inputs:input}}),{headers});
  }catch(e){return new Response(JSON.stringify({ok:false,error:e instanceof Error?e.message:String(e)}),{status:400,headers})}
 };
-Deno.serve(handler);
+// Production entrypoint: server.ts authenticates and checks paid/trial entitlement.
 
 function assertFinite(value:unknown):void {
  if(typeof value==='number'&&!Number.isFinite(value))throw new Error('نتیجه خارج از محدوده محاسبات است');

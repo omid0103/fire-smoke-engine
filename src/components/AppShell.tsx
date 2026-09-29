@@ -12,6 +12,7 @@ const nav = [
   ['/alarm', 'اعلام حریق', Bell],
   ['/standards', 'استانداردها و قواعد', BookOpenCheck],
   ['/reports', 'گزارش‌ها', Calculator],
+  ['/subscription', 'اشتراک و تمدید', ShieldCheck],
   ['/settings', 'تنظیمات', Settings],
 ] as const
 
