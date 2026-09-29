@@ -26,7 +26,9 @@ select set_config('request.jwt.claim.sub','cb5b4200-5b72-4ef9-b4d5-6dc714db2e26'
 set local role authenticated;
 select pg_temp.check_ok(public.has_subscription(),'trial active');
 insert into public.engineering_projects(id,organization_id,name,created_by) values('11111111-1111-4111-8111-111111111111',public.bootstrap_default_organization(),'QA rolled back',auth.uid());
+reset role;
 insert into public.design_runs(id,project_id,module_key,engine_version,status,input_json,result_json,created_by) values('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','parking_smoke','0.5.1','calculated','{"flow_cfm":12000}','{"velocity_mps":11.327}',auth.uid());
+set local role authenticated;
 select pg_temp.check_ok((select result_json->>'velocity_mps'='11.327' from public.design_runs where id='22222222-2222-4222-8222-222222222222'),'saved result reopens');
 update public.engineering_projects set name='QA edited' where id='11111111-1111-4111-8111-111111111111';
 select pg_temp.check_ok((select name='QA edited' from public.engineering_projects where id='11111111-1111-4111-8111-111111111111'),'active project edit');

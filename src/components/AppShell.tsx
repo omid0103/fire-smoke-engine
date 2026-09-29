@@ -28,7 +28,7 @@ export default function AppShell() {
         </div>
         <div className="sidebar__system-card">
           <div className="pulse-dot" />
-          {!collapsed && <><span>ENGINEERING CORE</span><strong>v0.3.0 / ONLINE</strong></>}
+          {!collapsed && <><span>ENGINEERING CORE</span><strong>v0.5.1 / ONLINE</strong></>}
         </div>
         <nav className="sidebar__nav">
           {nav.map(([to, label, Icon]) => (

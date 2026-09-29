@@ -93,7 +93,7 @@ function alarmCoverage(input:Json){
  return {status:"warning",results:{estimated_detectors:Math.ceil(A/guide),legacy_guide_area_per_device_m2:guide,ceiling_height_m:h},warnings:["اعداد پوشش این ماژول فقط از راهنمای آموزشی قدیمی آپلودشده استخراج شده‌اند و معیار طراحی جاری محسوب نمی‌شوند.","جانمایی، فاصله، ارتفاع سقف، موانع و نوع دتکتور فقط پس از اعتبارسنجی BS 5839-1 جاری و الزامات ایران/AHJ نهایی شود."],trace:["N_est = ceil(floor area / legacy guide area)"],source_profile:"Legacy uploaded BS 5839 educational guide; preliminary only."}
 }
 
-export const handler=async(req:Request)=>{
+export const handler=async(req:Request, persist?: (data:any,projectId:string)=>Promise<unknown>)=>{
  const headers={"content-type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
  if(req.method==="OPTIONS") return new Response("ok",{headers});
  try{
@@ -103,11 +103,12 @@ export const handler=async(req:Request)=>{
   const chunks:Uint8Array[]=[];let size=0;
   while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>262144){await reader.cancel();return new Response(JSON.stringify({ok:false,error:"Request exceeds 256 KiB"}),{status:413,headers});}chunks.push(value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
-  const body=JSON.parse(new TextDecoder().decode(bytes)) as {module?:string,input?:Json};
+  const body=JSON.parse(new TextDecoder().decode(bytes)) as {module?:string,input?:Json,project_id?:string};
   if(!body||typeof body!=="object"||Array.isArray(body))throw new Error("JSON object required");
   const stack:Array<[unknown,number]>=[[body,0]];
   while(stack.length){const [value,depth]=stack.pop()!;if(depth>16)throw new Error("Input nesting exceeds 16 levels");if(value&&typeof value==="object")for(const child of Object.values(value))stack.push([child,depth+1]);}
    const m=body.module??"", input=body.input??{}; let c:any;
+  if(body.project_id!==undefined && (typeof body.project_id!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.project_id)))throw new Error("Invalid project ID");
   if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("input must be an object");
   switch(m){
    case "hydraulic_network":c=network(input,false);break;
@@ -128,7 +129,12 @@ export const handler=async(req:Request)=>{
   }
   assertFinite(c);
   const engine_version="0.5.1",input_hash=await digest({m,input,engine_version});
-  return new Response(JSON.stringify({ok:true,module:m,engine_version,input_hash,calculation:{...c,inputs:input}}),{headers});
+  const data:any={ok:true,module:m,engine_version,input_hash,calculation:{...c,inputs:input}};
+  if(body.project_id){
+   try{if(!persist)throw new Error("Persistence unavailable");data.persistence=await persist(data,body.project_id);}
+   catch{data.persistence={saved:false,message:"محاسبه انجام شد اما ذخیره نشد؛ دسترسی پروژه و اتصال را بررسی و دوباره تلاش کنید."};}
+  }
+  return new Response(JSON.stringify(data),{headers});
  }catch(e){return new Response(JSON.stringify({ok:false,error:e instanceof Error?e.message:String(e)}),{status:400,headers})}
 };
 // Production entrypoint: server.ts authenticates and checks paid/trial entitlement.

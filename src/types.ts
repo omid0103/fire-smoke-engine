@@ -17,7 +17,7 @@ export type Project = {
 }
 
 export type CalculationResponse = {
-  persistence?: { saved: boolean; message: string }
+  persistence?: { saved: boolean; message: string; run_id?: string }
   ok: boolean
   module: string
   engine_version: string
@@ -46,6 +46,8 @@ export type StandardSource = {
 }
 
 export type DesignRun = {
+  server_generated?: boolean
+  calculator_key?: string | null
   id: string
   project_id: string
   module_key: string
