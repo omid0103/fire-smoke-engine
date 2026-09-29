@@ -1,4 +1,8 @@
 begin;
+-- Reset only the fixture account entitlement inside this rolled-back transaction.
+-- Do not run against an account with real orders.
+do $$ begin if exists(select 1 from public.subscription_orders where user_id='cb5b4200-5b72-4ef9-b4d5-6dc714db2e26') then raise exception 'Fixture account has orders; use an isolated staging fixture'; end if; end $$;
+update public.subscriptions set valid_until=now()-interval '1 second',trial_used=false where user_id='cb5b4200-5b72-4ef9-b4d5-6dc714db2e26';
 create function pg_temp.check_ok(v boolean,msg text) returns void language plpgsql as $$ begin if not coalesce(v,false) then raise exception 'FAILED: %',msg; end if; end $$;
 select set_config('request.jwt.claim.sub','cb5b4200-5b72-4ef9-b4d5-6dc714db2e26',true);
 set local role authenticated;

@@ -49,3 +49,6 @@ Do not represent this release as a complete validated design suite.
 - Verified: 55 numerical assertions + 15 phone assertions + 13 entitlement gate assertions; production TypeScript/build; transactional database tests for roles, tenant isolation, price tampering, duplicate order, trial reuse, renewal, duplicate bank reference rollback and expiry. All billing fixtures were rolled back.
 - Remaining go-live gates: bank destination/instructions supplied by owner, working SMS OTP, authenticated browser checkout/review/report journey, independent engineering validation described above. This release does not imply full engineering production certification.
 - Existing Supabase advisory: leaked password protection disabled (not introduced by billing). https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
+
+# Operational QA follow-up — 2026-09-29
+See `QA-2026-09-29.md` second-stage section for current evidence. Server-generated persistence, authenticated trial browser calculations, report reopening and downloaded JSON verification now pass. Production Edge Function is version9, numerical engine0.5.1. Backup/restore dashboard requires secure login; SMS template rejection, bank instructions, PDF artifact verification, staging load and independent engineering acceptance remain open. Public sales remain off.
