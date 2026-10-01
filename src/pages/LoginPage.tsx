@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Activity, ArrowLeft, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import EngineeringLogo from '../components/EngineeringLogo'
 import { latinDigits, normalizeMobile, authMessage } from '../lib/phone'
@@ -88,9 +88,45 @@ export default function LoginPage() {
           {message && <div role="status" aria-live="polite" className="login-message">{message}</div>}
           <button className="primary-button large" disabled={busy||(method==='phone'&&phoneEnabled===false)}>{busy ? 'در حال پردازش…' : <>{method==='phone'?(sentPhone?'تأیید کد و ورود':'دریافت کد یک‌بارمصرف'):mode === 'login' ? 'ورود به سامانه' : 'ثبت حساب'}<ArrowLeft size={18}/></>}</button>
           {method==='email'&&<button type="button" className="text-button" onClick={()=>setMode(mode==='login'?'signup':'login')}>{mode==='login'?'حساب ندارید؟ ایجاد حساب':'حساب دارید؟ ورود'}</button>}
-          <div className="login-disclaimer">این سامانه ابزار کمک‌مهندسی است. تأیید نهایی طراحی وابسته به استاندارد جاری، ضوابط مرجع ذی‌صلاح و بازبینی متخصص است.</div>
+          <Link to="/forgot-password" className="text-button">رمز عبور ایمیلی را فراموش کرده‌اید؟</Link><div className="login-disclaimer">این سامانه ابزار کمک‌مهندسی است. تأیید نهایی طراحی وابسته به استاندارد جاری، ضوابط مرجع ذی‌صلاح و بازبینی متخصص است.</div>
         </form>
       </section>
     </div>
   )
+}
+
+
+export function PasswordRecoveryPage({recovery=false}:{recovery?:boolean}) {
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[repeat,setRepeat]=useState('')
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[done,setDone]=useState(false)
+ const [retryAt,setRetryAt]=useState(0),[now,setNow]=useState(Date.now())
+ useEffect(()=>{const id=window.setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id)},[])
+ const remaining=Math.max(0,Math.ceil((retryAt-now)/1000))
+ async function submit(e:FormEvent){
+  e.preventDefault();if(busy||done||(!recovery&&remaining>0))return
+  setBusy(true);setMessage('')
+  try {
+   if(recovery){
+    if(password.length<12)throw new Error('رمز جدید باید حداقل ۱۲ نویسه باشد.')
+    if(password!==repeat)throw new Error('رمز جدید و تکرار آن یکسان نیستند.')
+    const {error}=await supabase.auth.updateUser({password});if(error)throw error
+    setPassword('');setRepeat('');setDone(true)
+    const result=await supabase.auth.signOut({scope:'global'})
+    setMessage(result.error?'رمز تغییر کرد؛ خروج از همه نشست‌ها تأیید نشد. از حساب خارج شوید و دوباره وارد شوید.':'رمز تغییر کرد. اکنون با رمز جدید وارد شوید.')
+   }else{
+    const {error}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.origin+'/login'})
+    if(error)throw error
+    setRetryAt(Date.now()+60000)
+    setMessage('اگر حساب ایمیلی قابل بازیابی باشد، لینک بازیابی برای آن ارسال می‌شود. پوشه هرزنامه را هم بررسی کنید و لینک را در همین مرورگر باز کنید.')
+   }
+  }catch(e){setMessage(authMessage(e))}finally{setBusy(false)}
+ }
+ return <div className="login-page"><section className="login-form-area"><form className="login-card" onSubmit={submit}>
+ <h1>{recovery?'تعیین رمز جدید':'بازیابی رمز عبور'}</h1>
+ <p>{recovery?'رمز جدید را فقط در این فرم وارد کنید.':'ایمیل همان حسابی را وارد کنید که رمز آن را فراموش کرده‌اید.'}</p>
+ {!done&&(recovery?<><label className="login-input"><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} required value={password} onChange={e=>setPassword(e.target.value)} disabled={busy} dir="ltr"/></label><label className="login-input"><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} required value={repeat} onChange={e=>setRepeat(e.target.value)} disabled={busy} dir="ltr"/></label></>:<label className="login-input"><span>ایمیل حساب</span><input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} disabled={busy} dir="ltr"/></label>)}
+ {message&&<p className="login-message" role="status">{message}</p>}
+ {!done&&<button className="primary-button" disabled={busy||(!recovery&&remaining>0)}>{busy?'در حال پردازش…':recovery?'ذخیره رمز جدید':remaining>0?`ارسال مجدد در ${remaining} ثانیه`:'ارسال لینک بازیابی'}</button>}
+ <a className="text-button" href="/login">بازگشت به ورود</a>
+ </form></section></div>
 }
