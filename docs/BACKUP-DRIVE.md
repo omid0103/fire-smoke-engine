@@ -1,6 +1,6 @@
 # Independent encrypted database backup — 2026-09-30
 
-Status: implementation prepared; NOT activated; no production backup or restore drill yet.
+Status (2026-10-01): first manual production backup succeeded; encrypted Drive upload and downloaded SHA-256 verified. Nightly schedule remains disabled; restore drill and independent missed-run monitoring remain open.
 
 ## Architecture
 GitHub Actions (isolated temporary runner) -> Supabase session pooler over verified TLS ->
@@ -86,6 +86,15 @@ Python temporary-directory context and runner teardown. No secrets are kept in s
 Upload interruption is not automatically resumed; a manual retry creates a new archive.
 
 ## Evidence
+- 2026-10-01 17:42:05 UTC (21:12:05 Tehran): workflow run 36897440856,
+  job 110500234663, source commit 03aa4672e10ad710b33a084b0b1ffe7fa95a3370
+  completed successfully. Google access, database connection, custom-format dump,
+  archive listing, roles export, encryption and Drive upload/download checksum passed.
+- This successful run also passed the PostgreSQL 17 major-version gate and confirmed
+  zero Storage objects before and after export. It does not prove restoration.
+- No private key was supplied to the runner. BACKUP_ENABLED and
+  BACKUP_RESTORE_VERIFIED have not been enabled by this verification.
+
 DirectAdmin refused a shell diagnostic with "Invalid command" and required administrator
 approval for custom commands. Its cron list remained empty. That restriction was not
 bypassed. Google Drive is a destination; it does not execute pg_dump.
