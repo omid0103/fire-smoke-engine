@@ -4,10 +4,12 @@ Native Persian RTL client sharing the existing Supabase account, RLS, project da
 server calculation endpoint and subscription entitlement. Not a WebView wrapper.
 
 ## Status
-Source implementation only. Flutter SDK bootstrap was blocked by execution security
-review because it attempted to contact the environment's cloud metadata endpoint.
-No Flutter analyze/test/build succeeded in this environment. No APK/IPA, signing,
-store approval, device testing or full release readiness is claimed.
+Android test APK built successfully on 2026-10-01 using an isolated, read-only GitHub Actions runner with cloud metadata egress denied.
+Build: https://github.com/omid0103/fire-smoke-engine/actions/runs/36908729586
+Source commit: 4aad9384721b60bc9657ab07fc59a179919686d6.
+All 3 Flutter tests passed. Analysis completed with no errors, one missing flutter_lints include warning and one deprecated anonKey info.
+The APK is debug-signed for installation and testing, not a production release.
+Real-device acceptance, production signing, iOS IPA signing, store approval and full release readiness remain pending.
 
 Implemented in source:
 - Email sign-in/sign-up and web email recovery; Iranian phone normalization and SMS OTP
