@@ -131,7 +131,29 @@ def run(args, env=None):
     try:
         return subprocess.run(args, env=env, check=True, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, timeout=900).stdout
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as exc:
+        # Classify known failures without publishing stderr, SQL, or credentials.
+        stderr = (exc.stderr or b'').decode('utf-8', errors='replace').lower()
+        category = 'unclassified subprocess failure'
+        for marker, label in [
+            ('password authentication failed', 'database password rejected'),
+            ('tenant or user not found', 'database pooler identity rejected'),
+            ('certificate verify failed', 'TLS certificate verification failed'),
+            ('does not match host name', 'TLS hostname mismatch'),
+            ('root certificate file', 'TLS root certificate unavailable'),
+            ('permission denied', 'database or filesystem permission denied'),
+            ('could not translate host name', 'database DNS lookup failed'),
+            ('connection timed out', 'database connection timed out'),
+            ('timeout expired', 'database connection timed out'),
+            ('connection refused', 'database connection refused'),
+            ('too many connections', 'database connection limit reached'),
+            ('server version mismatch', 'database client version mismatch'),
+            ('could not find an available, non-overlapping ipv4 address pool', 'container networking unavailable'),
+        ]:
+            if marker in stderr:
+                category = label
+                break
+        print('Failure category: ' + category, flush=True)
         raise RuntimeError('Backup subprocess failed; no data uploaded') from None
 
 
@@ -165,17 +187,20 @@ def main():
         docker += [IMAGE]
         def sql(query):
             return run(docker + ['psql', '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', query], env).decode().strip()
+        print('Stage: database connection and version check', flush=True)
         version = sql('show server_version_num')
         if not 170000 <= int(version) < 180000:
             raise RuntimeError('Database major version changed; review backup client')
         # Fail rather than silently omit object bytes if Storage begins being used.
         if sql('select count(*) from storage.objects') != '0':
             raise RuntimeError('Storage files exist: implement object backup before continuing')
+        print('Stage: database dump', flush=True)
         run(docker + ['pg_dump', '--format=custom', '--file=/work/database.dump',
                       '--lock-wait-timeout=30000'], env)
         run(docker + ['pg_restore', '--list', '/work/database.dump'], env)
         if sql('select count(*) from storage.objects') != '0':
             raise RuntimeError('Storage changed during backup; object export required')
+        print('Stage: database roles export', flush=True)
         roles = run(docker + ['pg_dumpall', '--roles-only', '--no-role-passwords'], env)
         (root / 'roles.sql').write_bytes(roles)
         manifest = {'project': PROJECT, 'created_at': dt.datetime.now(dt.timezone.utc).isoformat(),
