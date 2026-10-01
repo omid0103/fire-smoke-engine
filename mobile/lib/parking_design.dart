@@ -31,10 +31,11 @@ class ParkingDesign {
     final errors=<String>[];
     final numbers=[length,width,height,area,exhaustCfm,supplyCfm,ductDepth,ductBottom,velocity,exhaustY,supplyY,minClearance];
     if(numbers.any((v)=>!v.isFinite)) return ['ورودی نامتناهی یا نامعتبر است.'];
-    if(length<3||length>300||width<3||width>300||height<=0||height>20||area<=0||exhaustCfm<=0||supplyCfm<0||ductDepth<=0||velocity<=0||velocity>30||minClearance<0) return ['ابعاد، دبی یا سرعت خارج از محدوده پشتیبانی است.'];
+    if(length<3||length>300||width<3||width>300||height<=0||height>20||area<=0||exhaustCfm<=0||exhaustCfm>1e7||supplyCfm<0||supplyCfm>1e7||ductDepth<.05||ductDepth>2||velocity<.1||velocity>30||minClearance<0) return ['ابعاد، دبی یا سرعت خارج از محدوده پشتیبانی است.'];
     if((length*width-area).abs()>math.max(.1,area*.01)) errors.add('مساحت طول × عرض با مساحت زون محاسبه‌شده بیش از ۱٪ اختلاف دارد. محاسبه یا ابعاد را اصلاح کنید.');
     if(ductBottom<minClearance||ductBottom+ductDepth>height) errors.add('ارتفاع زیر کانال باید از ارتفاع آزاد موردنیاز کمتر نباشد و بالای کانال از سقف عبور نکند.');
     if(outlets<2||outlets>40) errors.add('تعداد دریچه هر مسیر باید بین ۲ و ۴۰ باشد.');
+    if(outlets>=2&&(length-1.2)/outlets<.35) errors.add('طول مسیر برای نمایش جداگانه این تعداد دریچه کافی نیست.');
     for(final p in [[exhaustY,ductWidth(exhaustCfm)],[supplyY,ductWidth(supplyCfm)]]) {
       if(p[1]>0 && (p[0]-p[1]/2<.2||p[0]+p[1]/2>width-.2)) errors.add('کانال با عرض محاسبه‌شده در محدوده پارکینگ جا نمی‌گیرد؛ محل، ارتفاع مقطع یا سرعت را بازبینی کنید.');
     }

@@ -8,7 +8,7 @@ ParkingDesign fixture({double length=30,double bottom=2.4,double supply=7200,dou
 void main(){
  test('Geometry rejects stale area, out-of-room ducts, collisions, invalid height and counts',(){
   expect(fixture().validate(),isEmpty);
-  for(final d in [fixture(length:40),fixture(bottom:2.9),fixture(bottom:2),fixture(sy:4.1),fixture(ey:0),fixture(outlets:41),fixture(length:double.nan)]){expect(d.validate(),isNotEmpty);expect(()=>d.dxf(),throwsFormatException);}
+  for(final d in [fixture(length:40),fixture(bottom:2.9),fixture(bottom:2),fixture(sy:4.1),fixture(ey:0),fixture(outlets:41),fixture(length:double.nan),fixture(supply:1e308)]){expect(d.validate(),isNotEmpty);expect(()=>d.dxf(),throwsFormatException);}
  });
  test('Duct velocity upper bound and outlet conservation are preserved',(){
   final d=fixture();expect(d.exhaustCfm/2118.880003/(d.ductWidth(d.exhaustCfm)*d.ductDepth),lessThanOrEqualTo(d.velocity));
@@ -20,7 +20,7 @@ void main(){
   for(final threeD in [false,true]){final text=fixture().dxf(threeD:threeD);expect(text,contains('TEST-FIXTURE'));expect(text,contains('\$INSUNITS\n70\n6'));expect(text,endsWith('0\nEOF\n'));File('test/artifacts/parking-${threeD?'3d':'2d'}.dxf').writeAsStringSync(text);}
  });
  testWidgets('Required inputs, generated preview and stale export invalidation',(tester)async{
-  await tester.binding.setSurfaceSize(const Size(900,2200));
+  await tester.binding.setSurfaceSize(const Size(430,2200));
   addTearDown(()=>tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(MaterialApp(home:ParkingDesignPage(reference:'TEST',calculation:{'zones':[{'inputs':{'area_m2':600,'height_m':3},'results':{'design_exhaust_cfm':12000,'makeup_air_cfm':7200},'warnings':<String>[]}],'warnings':<String>[]})));
   final generate=find.text('ساخت شماتیک سه‌بعدی');await tester.ensureVisible(generate);await tester.tap(generate);await tester.pump();expect(find.text('پیش‌نیازهای طرح اولیه را تأیید کنید.'),findsOneWidget);
