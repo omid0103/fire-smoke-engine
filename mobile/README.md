@@ -1,13 +1,13 @@
-# Rabin Engineering — Flutter mobile source 0.1
+# Rabin Engineering — Flutter mobile source 0.2
 
 Native Persian RTL client sharing the existing Supabase account, RLS, project data,
 server calculation endpoint and subscription entitlement. Not a WebView wrapper.
 
 ## Status
 Android test APK built successfully on 2026-10-01 using an isolated, read-only GitHub Actions runner with cloud metadata egress denied.
-Build: https://github.com/omid0103/fire-smoke-engine/actions/runs/36908729586
-Source commit: 4aad9384721b60bc9657ab07fc59a179919686d6.
-All 3 Flutter tests passed. Analysis completed with no errors, one missing flutter_lints include warning and one deprecated anonKey info.
+Build: https://github.com/omid0103/fire-smoke-engine/actions/runs/36913493885
+Source commit: b5eda9ca69187b46de8932200331b5d10f199236.
+All 7 Flutter tests passed, including a 430 px wide widget interaction test. Analysis reported no issues. Independent ezdxf parsing/audit confirmed meters, layer names and 2D/3D extents. Flutter golden captures use the test font; they are not production typography screenshots.
 The APK is debug-signed for installation and testing, not a production release.
 Real-device acceptance, production signing, iOS IPA signing, store approval and full release readiness remain pending.
 
