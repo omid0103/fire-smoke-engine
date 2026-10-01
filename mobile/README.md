@@ -68,3 +68,21 @@ engineering methods. Existing web engineering/backup acceptance gates still appl
 Purchasing digital subscriptions inside store-distributed builds needs a separate,
 current store-policy and billing implementation review. This source exposes existing
 entitlements only and makes no App Store / Google Play approval claim.
+
+## Parking preliminary design (0.2)
+After a successful parking_smoke_group calculation, open the parking design button.
+Choose a zone, then supply its rectangular length/width, duct depth and underside
+height, project clearance, velocity, two centerline Y coordinates, outlet count and
+fan connection end. Values are deliberately blank. Dimensions must match the
+calculated zone area within 1%; nonfinite values, ceiling/wall crossings and duct
+collisions are rejected. Changing inputs invalidates the old preview and export.
+The native 3D view supports orbit and zoom. Export 2D or 3D wireframe DXF via the
+system share/save sheet. Units are meters; layers and flow labels identify each
+system, and calculation hash/engine/zone are embedded in the drawing notes.
+This version supports straight parallel routes within one rectangular zone at a
+time. No architecture import, obstacle routing, network pressure loss, equipment
+selection, IFC/RVT, or persistent geometry storage is implemented. Symbols for
+fans and grilles are indicative only. All outlets assume equal flow; duct width
+uses full zone flow / selected velocity / depth, rounded upward to 50 mm.
+Uploaded parking workbook was inspected for context (Sheet1 C15:I21); the mobile
+feature reuses server zone outputs and does not replace the calculation model.

@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'catalog.dart';
+import 'parking_design_page.dart';
 
 const backend=String.fromEnvironment('SUPABASE_URL',defaultValue:'https://ezbdoudxtgqqewkrzzyg.supabase.co');
 const publicKey=String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY',defaultValue:'sb_publishable_AmZGxbLa-suJaeoZekEkBA_TSN5iGm6');
@@ -21,7 +22,7 @@ class SecureSession extends LocalStorage {
 Future<void> main() async {
  WidgetsFlutterBinding.ensureInitialized();
  try {
-  await Supabase.initialize(url:backend,anonKey:publicKey,authOptions:FlutterAuthClientOptions(localStorage:SecureSession()));
+  await Supabase.initialize(url:backend,publishableKey:publicKey,authOptions:FlutterAuthClientOptions(localStorage:SecureSession()));
   runApp(const RabinApp());
  }catch(_){runApp(const MaterialApp(home:Scaffold(body:Center(child:Text('راه‌اندازی امن انجام نشد. برنامه را دوباره باز کنید.')))));}
 }
@@ -129,7 +130,7 @@ class _CalculatorPageState extends State<CalculatorPage>{
  ...widget.model.fields.map((f)=>input(f,values[f.key]!)),
  ...widget.model.collections.entries.map((c)=>Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text({'zones':'زون‌ها','nodes':'گره‌ها','edges':'مسیرها'}[c.key]!),...rows[c.key]!.asMap().entries.map((r)=>Card(key:ObjectKey(r.value),child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[Row(children:[Text('${r.key+1}'),const Spacer(),IconButton(tooltip:'حذف ردیف',onPressed:busy||rows[c.key]!.length<=1?null:(){setState((){rows[c.key]!.removeAt(r.key);result=null;});for(final v in r.value.values){v.dispose();}},icon:const Icon(Icons.delete_outline))]),...c.value.map((f)=>input(f,r.value[f.key]!))])))),TextButton.icon(onPressed:busy||rows[c.key]!.length>=(c.key=='edges'?200:60)?null:()=>setState((){rows[c.key]!.add(newRow(c.value));result=null;}),icon:const Icon(Icons.add),label:const Text('افزودن ردیف'))])),
  FilledButton(onPressed:busy?null:calculate,child:Text(busy?'در حال محاسبه…':'محاسبه روی سرور')),
- if(result!=null)...[Text('${result!['persistence']?['message']??'محاسبه بدون ذخیره'}'),ResultView(data:result!)]
+ if(result!=null)...[Text('${result!['persistence']?['message']??'محاسبه بدون ذخیره'}'),ResultView(data:result!),if(widget.model.key=='parking_smoke_group')FilledButton.icon(onPressed:()=>open(context,ParkingDesignPage(calculation:Map<String,dynamic>.from(result!['calculation'] as Map),reference:'${result!["input_hash"]} / engine ${result!["engine_version"]}')),icon:const Icon(Icons.view_in_ar),label:const Text('طراحی اولیه و نقشه پارکینگ'))]
  ]));
 }
 class ResultView extends StatelessWidget{final Map<String,dynamic> data;const ResultView({super.key,required this.data});@override Widget build(BuildContext context){final c=data['calculation'] as Map?;return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const SizedBox(height:16),Text('نسخه موتور: ${data['engine_version']??'—'}'),if(c!=null)...[const Text('خروجی‌ها'),JsonView(value:c['results']),const Text('هشدارها و دامنه مدل'),JsonView(value:c['warnings']),JsonView(value:c['source_profile']),const Text('ردیابی محاسبه'),JsonView(value:c['trace'])]else JsonView(value:data)]);}}

@@ -30,19 +30,22 @@ jobs:
           flutter pub get
           dart format lib test
           flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter test
+          flutter test --update-goldens
+          python3 -m pip install ezdxf==1.4.3
+          python3 "$GITHUB_WORKSPACE/mobile/validate_dxf.py" test/artifacts
       - name: Build installable Android test APK
         working-directory: ${{ runner.temp }}/rabin-mobile-build
         run: |
           flutter build apk --debug
-          cp build/app/outputs/flutter-apk/app-debug.apk Rabin-Engineering-Android-test.apk
-          sha256sum Rabin-Engineering-Android-test.apk > SHA256SUMS.txt
+          cp build/app/outputs/flutter-apk/app-debug.apk Rabin-Parking-Design-Android-test.apk
+          sha256sum Rabin-Parking-Design-Android-test.apk > SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Rabin-Engineering-Android-test
+          name: Rabin-Parking-Design-Android-test
           path: |
-            ${{ runner.temp }}/rabin-mobile-build/Rabin-Engineering-Android-test.apk
+            ${{ runner.temp }}/rabin-mobile-build/Rabin-Parking-Design-Android-test.apk
             ${{ runner.temp }}/rabin-mobile-build/SHA256SUMS.txt
             ${{ runner.temp }}/rabin-mobile-build/pubspec.lock
+            ${{ runner.temp }}/rabin-mobile-build/test/artifacts/
           if-no-files-found: error
           retention-days: 30

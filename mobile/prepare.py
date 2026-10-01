@@ -16,6 +16,7 @@ for name in ['lib', 'test']:
     shutil.rmtree(out / name, ignore_errors=True)
     shutil.copytree(source / name, out / name)
 shutil.copy2(source / 'pubspec.yaml', out / 'pubspec.yaml')
+(out / 'analysis_options.yaml').write_text('analyzer:\n  exclude: [build/**]\n')
 manifest = out / 'android/app/src/main/AndroidManifest.xml'
 text = manifest.read_text()
 text = text.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application android:allowBackup="false"', 1)
