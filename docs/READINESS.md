@@ -52,3 +52,12 @@ Do not represent this release as a complete validated design suite.
 
 # Operational QA follow-up — 2026-09-29
 See `QA-2026-09-29.md` second-stage section for current evidence. Server-generated persistence, authenticated trial browser calculations, report reopening and downloaded JSON verification now pass. Production Edge Function is version9, numerical engine0.5.1. Backup/restore dashboard requires secure login; SMS template rejection, bank instructions, PDF artifact verification, staging load and independent engineering acceptance remain open. Public sales remain off.
+
+# Subscription checkout follow-up — 2026-10-01
+- Added explicit order review showing price, duration, manual activation and renewal behavior before order creation.
+- Existing pending/submitted orders are surfaced and new plan buttons disabled until the open order is resolved; server-side single-open-order and price controls remain authoritative.
+- Payment submission confirms review is pending; successful mutations with failed refreshes no longer appear to be failed payments.
+- Customer transfer notes, seven-day expiry warning, admin order search/status filters and pending-review count added.
+- Dialog keyboard focus, Escape handling, mobile overflow and inline error visibility improved.
+- Validation: production TypeScript/Vite build and 188 existing assertions passed. Authenticated real-bank checkout acceptance remains unverified for this change; no payment or entitlement was fabricated.
+- Public sales remain disabled pending real bank destination/support instructions, working OTP and engineering acceptance. Independent backup first upload/checksum succeeded; restore drill and monitoring remain open.
