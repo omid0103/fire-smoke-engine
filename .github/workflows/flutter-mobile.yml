@@ -1,0 +1,48 @@
+name: Flutter Android installable test build
+on:
+  push:
+    branches: [mobile/flutter-client]
+    paths: ['mobile/**', '.github/workflows/flutter-mobile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Deny cloud instance metadata access
+        run: sudo iptables -I OUTPUT -d 169.254.169.254/32 -j REJECT
+      - name: Install pinned official Flutter SDK
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" checkout 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+      - name: Prepare native Android and iOS projects
+        run: python3 mobile/prepare.py "$RUNNER_TEMP/rabin-mobile-build"
+      - name: Resolve, analyze and test
+        working-directory: ${{ runner.temp }}/rabin-mobile-build
+        run: |
+          flutter pub get
+          dart format lib test
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
+      - name: Build installable Android test APK
+        working-directory: ${{ runner.temp }}/rabin-mobile-build
+        run: |
+          flutter build apk --debug
+          cp build/app/outputs/flutter-apk/app-debug.apk Rabin-Engineering-Android-test.apk
+          sha256sum Rabin-Engineering-Android-test.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Rabin-Engineering-Android-test
+          path: |
+            ${{ runner.temp }}/rabin-mobile-build/Rabin-Engineering-Android-test.apk
+            ${{ runner.temp }}/rabin-mobile-build/SHA256SUMS.txt
+            ${{ runner.temp }}/rabin-mobile-build/pubspec.lock
+          if-no-files-found: error
+          retention-days: 30
