@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -145,8 +146,11 @@ def main():
         raise RuntimeError('Unexpected database host')
     if required('PGUSER') not in ('postgres', 'postgres.' + PROJECT):
         raise RuntimeError('Unexpected source database identity')
+    print('Stage: Google token exchange', flush=True)
     drive = Drive()
+    print('Stage: Drive folder access', flush=True)
     folder = drive.folder()
+    print('Stage: database export', flush=True)
     with tempfile.TemporaryDirectory(prefix='rabin-backup-') as tmp:
         root = Path(tmp)
         (root / 'ca.crt').write_text(required('PG_CA_PEM'))
@@ -188,6 +192,7 @@ def main():
         stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         encrypted = root / ('rabin-engine-' + stamp + '.tar.gz.age')
         run(['age', '-r', required('AGE_RECIPIENT'), '-o', str(encrypted), str(archive)])
+        print('Stage: encrypted upload and checksum verification', flush=True)
         uploaded_id = drive.upload(encrypted, folder)
         # Remote checksum alone is not proof of recoverability. Require a recorded restore drill.
         if os.environ.get('BACKUP_RESTORE_VERIFIED') == 'true':
@@ -205,6 +210,15 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
+        # Emit only a numeric HTTP status and an allowlisted OAuth error code.
+        if isinstance(exc, urllib.error.HTTPError):
+            print('HTTP status: ' + str(exc.code))
+            try:
+                code = json.loads(exc.read(8192)).get('error')
+                if code in ('invalid_client', 'invalid_grant', 'access_denied', 'unauthorized_client', 'invalid_scope'):
+                    print('OAuth error: ' + code)
+            except (ValueError, TypeError):
+                pass
         # Never print HTTP response bodies, connection strings or subprocess output.
         print('Backup failed (' + type(exc).__name__ + '). Check private configuration and service access.')
         raise SystemExit(1)
