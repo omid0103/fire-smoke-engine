@@ -61,3 +61,17 @@ See `QA-2026-09-29.md` second-stage section for current evidence. Server-generat
 - Dialog keyboard focus, Escape handling, mobile overflow and inline error visibility improved.
 - Validation: production TypeScript/Vite build and 188 existing assertions passed. Authenticated real-bank checkout acceptance remains unverified for this change; no payment or entitlement was fabricated.
 - Public sales remain disabled pending real bank destination/support instructions, working OTP and engineering acceptance. Independent backup first upload/checksum succeeded; restore drill and monitoring remain open.
+
+# Public engineering validation — 2026-10-03
+
+See `ENGINEERING-VALIDATION-2026-10-03.md` for the full evidence matrix and scope.
+
+- The internal **public engineering validation gate is closed for the declared calculation scope**: hydraulic-network kernel, airflow-network kernel, Hazen-Williams, duct continuity, DC battery arithmetic, voltage drop and NPSHa are classified as validated kernels; the atrium axisymmetric and single-zone pressurization equations are classified as validated limited models.
+- Production Rule Registry now contains verified public engineering references for EPA EPANET 2.2, NIST CONTAM 3.4 and NISTIR 5516, with ten rules marked `locked` or `verified` effective 2026-10-03.
+- Parking smoke design defaults remain `draft` because ACH, zoning, redundancy and other acceptance criteria are project/AHJ inputs rather than universal equations.
+- Sprinkler preliminary sizing, fire-pump preliminary sizing and legacy detector-coverage calculations are explicitly prevented from being represented as fully validated final-design modules.
+- Results and printable reports now display the exact validation level, supporting basis and limitations for the calculator used.
+- A dedicated regression test prevents preliminary/legacy calculators from accidentally being labelled fully validated in future releases.
+- Current public catalog baselines were checked for NFPA 13 (2025), NFPA 14 (2024), NFPA 20 (2025), NFPA 72 (2025), NFPA 92 (2024), BS 5839-1:2025 and relevant BS EN 12101 parts. The exact adopted Iranian/AHJ edition remains a project-level input and is not silently assumed.
+
+This closes the software team's engineering validation gate for **public release as a calculation and traceability tool within the declared scope**. It does not create an external professional seal, accredited certification, product listing or AHJ approval. Those are external, jurisdiction- or project-specific approvals and remain outside the software team's authority.
