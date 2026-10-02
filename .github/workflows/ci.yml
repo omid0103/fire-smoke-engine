@@ -13,9 +13,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: Bounded engine load regression
+        run: node tests/load.mjs
       - run: npm run typecheck
       - run: npm run build
