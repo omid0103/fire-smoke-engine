@@ -1,7 +1,9 @@
 import EngineeringValues from './EngineeringValues'
 import { AlertTriangle, CheckCircle2, Copy, ShieldCheck } from 'lucide-react'
 import { formatNumber } from '../lib/persian'
+import { validationFor } from '../lib/validation'
 import type { CalculationResponse } from '../types'
+import StatusPill from './StatusPill'
 
 export function prettyKey(key: string) {
   const labels: Record<string, string> = {
@@ -21,6 +23,7 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
 
   const c = data.calculation
   const warnings = c.warnings || []
+  const validation = validationFor(data.module)
   return (
     <div className="result-panel">
       <div className="result-panel__head">
@@ -33,6 +36,16 @@ export default function ResultPanel({ data }: { data: CalculationResponse | null
           <button className="icon-button" onClick={() => navigator.clipboard.writeText(JSON.stringify(data, null, 2))} title="کپی JSON"><Copy size={16}/></button>
         </div>
       </div>
+
+      <div className="source-note">
+        <StatusPill tone={validation.tone}>{validation.labelFa}</StatusPill>
+        <span>{validation.summaryFa}</span>
+      </div>
+      <details className="trace-box">
+        <summary>دامنه و شواهد اعتبارسنجی</summary>
+        {validation.basis.length > 0 && <><strong>شواهد / مبنا</strong><ul>{validation.basis.map((x,i)=><li key={`b-${i}`}>{x}</li>)}</ul></>}
+        {validation.limitations.length > 0 && <><strong>محدودیت‌های باقی‌مانده</strong><ul>{validation.limitations.map((x,i)=><li key={`l-${i}`}>{x}</li>)}</ul></>}
+      </details>
 
       {data.persistence && <div role="status" className={data.persistence.saved ? "ok-banner" : "warning-item"}>{data.persistence.message}</div>}
       <div className="result-grid">
