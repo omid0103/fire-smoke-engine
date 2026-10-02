@@ -1,6 +1,6 @@
 # Independent encrypted database backup — 2026-09-30
 
-Status (2026-10-01): first manual production backup succeeded; encrypted Drive upload and downloaded SHA-256 verified. Nightly schedule remains disabled; restore drill and independent missed-run monitoring remain open.
+Status (2026-10-03): first manual production backup succeeded; encrypted Drive upload and downloaded SHA-256 verified. Nightly schedule is enabled on `main`, and independent missed/failure monitoring is active. Full restore drill remains open.
 
 ## Architecture
 GitHub Actions (isolated temporary runner) -> Supabase session pooler over verified TLS ->
@@ -35,10 +35,10 @@ require a separate recovery inventory. GitHub holds application source and migra
    The script supports the documented postgres session-pooler identity. This credential
    is privileged; only trusted main-branch code and maintainers may access this environment.
    Set environment variable BACKUP_AGE_RECIPIENT to the public age key.
-5. Set repository variable BACKUP_ENABLED=true only after prerequisites are configured.
-   Leave BACKUP_RESTORE_VERIFIED unset. Manually run the workflow on main first.
-   The OAuth app creates its own private folder; a folder created by ChatGPT is not
-   automatically visible to a different drive.file-scoped app.
+5. Keep BACKUP_RESTORE_VERIFIED unset/false until a real isolated restore drill passes.
+   The nightly workflow is scheduled directly on `main`; it is no longer gated by a
+   repository BACKUP_ENABLED variable. Manually triggered runs remain available for
+   controlled verification and incident recovery checks.
 
 ## Verification and retention
 Successful runs validate the archive table of contents, encrypt locally, upload, then
@@ -47,10 +47,11 @@ it is NOT a restoration test. Roles and DB dump are separate snapshots; avoid ro
 changes during the run. pg_dump provides a consistent database snapshot.
 
 Schedule: 23:47 UTC (03:17 Tehran next day). GitHub schedule can be delayed or dropped;
-this is best-effort nightly backup, not a guaranteed 24-hour RPO. Enable Actions failure
-notifications in the owner's GitHub settings, and independently check the latest backup
-timestamp at least daily. An independent missed-run alert is still an activation gate.
-Review actual Actions usage/billing before enabling; no paid purchase is performed here.
+this is best-effort nightly backup, not a guaranteed 24-hour RPO. Independent monitoring
+checks backup health and alerts on failed/skipped/missed runs; the active monitor treats
+absence of a successful backup beyond the configured safety window as actionable. Keep
+normal GitHub Actions notifications enabled as an additional channel. Review actual
+Actions usage/billing periodically; no paid purchase is performed by this workflow.
 
 After a successful restore drill, set BACKUP_RESTORE_VERIFIED=true in environment backup.
 Retention then preserves the union of the newest backup for 7 calendar days, 4 ISO weeks,
@@ -92,8 +93,10 @@ Upload interruption is not automatically resumed; a manual retry creates a new a
   archive listing, roles export, encryption and Drive upload/download checksum passed.
 - This successful run also passed the PostgreSQL 17 major-version gate and confirmed
   zero Storage objects before and after export. It does not prove restoration.
-- No private key was supplied to the runner. BACKUP_ENABLED and
-  BACKUP_RESTORE_VERIFIED have not been enabled by this verification.
+- No private age identity was supplied to the runner. The private key remains offline.
+- On 2026-10-03 the workflow condition was updated so scheduled runs on `main` are no
+  longer skipped due to a missing BACKUP_ENABLED repository variable. Independent backup
+  health monitoring is active. Restore verification remains intentionally unset/open.
 
 DirectAdmin refused a shell diagnostic with "Invalid command" and required administrator
 approval for custom commands. Its cron list remained empty. That restriction was not
