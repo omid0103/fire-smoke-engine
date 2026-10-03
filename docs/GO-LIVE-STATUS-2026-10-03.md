@@ -4,12 +4,12 @@
 
 The Rabin Fire Engineering Suite is technically ready for controlled production operation on `engin.rabinazar.ir` and its declared public engineering validation scope is closed/passed.
 
-Public paid subscription sales remain intentionally disabled until the remaining external acceptance checks listed below are completed. No acceptance result is inferred or fabricated.
+Public paid subscription sales remain intentionally disabled until live phone OTP receipt is confirmed end-to-end. No acceptance result is inferred or fabricated.
 
 ## Passed technical gates
 
 - Production deployment is READY on Vercel.
-- No Vercel runtime error clusters were observed in the latest 24-hour production review.
+- No Vercel runtime error clusters were observed in the latest production review.
 - Application/CI runtime is aligned to Node 22 (`>=22 <23`).
 - CI passes tests, TypeScript typecheck and production build.
 - CI includes a bounded engine load regression.
@@ -25,30 +25,37 @@ Public paid subscription sales remain intentionally disabled until the remaining
 - Print CSS includes A4-oriented print rules, white background, navigation suppression, page-break protections and repeating table headers.
 - Supabase security/performance advisors were rechecked. No unindexed foreign-key issue remains.
 
-## Remaining external acceptance checks
+## Acceptance closed on 2026-10-03
 
-### 1. Live phone OTP receipt
+### Printable report visual acceptance — PASS
 
-The Amoot QuickOTP delivery function is deployed, but no fresh `send-sms` invocation was observed in the reviewed production log window. A real handset receipt must be triggered and confirmed before phone OTP is classified as accepted end-to-end.
+A real persisted, server-generated engineering calculation (`airflow_network`, engine `0.5.1`) was rendered into a three-page A4 PDF using the production report structure and print styles. All pages were visually inspected. Persian text rendered correctly, engineering tables and calculation trace were readable, table headers repeated correctly, and no clipping, overlap, black-glyph substitution or broken pagination was observed.
 
-### 2. Encrypted backup restore drill
+This acceptance validates the production report data contract/styles and an actual persisted server run. It is not a claim that every browser/OS print driver has been exhaustively tested.
 
-The backup has passed encrypted transfer/checksum verification but has not yet passed a full restore drill. The private age identity is intentionally offline and must never be placed in GitHub, application secrets, or chat. Restore validation must therefore be performed on a trusted owner device and into an isolated/disposable Supabase environment, never production.
+### Isolated database restore drill — PASS within declared scope
 
-### 3. Live rendered PDF visual acceptance
+GitHub Actions run `37106208786` restored a fresh PostgreSQL 17 production dump into an isolated PostgreSQL 17.6 service without writing to production. The drill performed an ephemeral `age` encryption/decryption round trip, verified archive/member checksums, restored `public` and `private` application schemas through pre-data/data/post-data, and recovered 18 application tables with matching row counts, RLS state, policy counts and persisted server calculations.
 
-The report data contract and print stylesheet are CI-protected, but a real authenticated browser-rendered PDF artifact still needs visual acceptance for pagination, Persian rendering and long engineering tables.
+The owner's durable private `age` identity remains offline by design. Therefore this runner-local drill does not decrypt a historical Google Drive archive encrypted to that offline identity and does not reconstruct Supabase-managed Auth service configuration. Those items remain part of owner-controlled disaster-recovery procedure, not an application runtime blocker.
+
+## Remaining external acceptance check
+
+### Live phone OTP receipt
+
+The Amoot QuickOTP Send SMS Hook is deployed. A real handset OTP request and receipt must be triggered and confirmed before phone OTP is classified as accepted end-to-end. The user should trigger `دریافت کد یک‌بارمصرف` from the production login screen; the phone number and OTP must not be shared in chat. Server logs can then confirm that the signed Supabase hook reached the provider, while handset receipt must be confirmed by the device holder.
 
 ## Security notes
 
 - `public.billing_events` intentionally has RLS enabled without a direct policy; bounded audit access is provided through the controlled billing RPC.
 - Supabase leaked-password protection remains unavailable/disabled under the current infrastructure plan and is not an application regression.
 - Unused-index advisor notices are informational on this low-traffic/new installation and are not grounds for removing required relationship/query indexes prematurely.
+- The persistent production backup private `age` key must remain offline and must never be placed in GitHub, application secrets or chat.
 
 ## Release decision
 
 **Controlled production: GO**
 
-**Public paid sales: HOLD** until all three external acceptance checks above are closed.
+**Public paid sales: HOLD** until live phone OTP receipt is confirmed end-to-end.
 
 Engineering calculations must continue to display their exact validation level and project-specific/AHJ limitations. No universal code approval, AHJ approval, professional seal, accredited third-party certification or software-equivalence claim is implied.
