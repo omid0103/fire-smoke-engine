@@ -1,0 +1,49 @@
+name: Isolated database restore drill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/restore-drill.yml'
+      - 'scripts/backup/restore_drill.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isolated-database-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: backup
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_PASSWORD: restore-drill-local-only
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install age from Ubuntu repository
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends age
+      - name: Run non-destructive isolated restore drill
+        env:
+          PGHOST: ${{ secrets.BACKUP_PGHOST }}
+          PGUSER: ${{ secrets.BACKUP_PGUSER }}
+          PGPASSWORD: ${{ secrets.BACKUP_PGPASSWORD }}
+          PG_CA_PEM: ${{ secrets.BACKUP_PG_CA_PEM }}
+          TARGET_PGPASSWORD: restore-drill-local-only
+        run: python3 scripts/backup/restore_drill.py
