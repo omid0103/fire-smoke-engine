@@ -1,10 +1,8 @@
-"""Non-destructive restore drill for a fresh production dump.
+"""Non-destructive restore drill for the Rabin production database.
 
-Reads production through the same TLS/pooler credentials as backup.py, creates a
-custom-format PostgreSQL 17 dump, performs an ephemeral age encrypt/decrypt cycle,
-restores the public + private application schemas into an isolated PostgreSQL 17
-service, then compares row counts, RLS, policies and persisted calculation state.
-No write is made to production and no durable private key is created.
+The drill reads production only, creates a fresh PostgreSQL 17 custom-format dump,
+verifies an ephemeral age encrypt/decrypt round trip, restores application schemas
+into an isolated local PostgreSQL 17 service, and compares data/security state.
 """
 from __future__ import annotations
 
@@ -19,23 +17,35 @@ import tempfile
 
 PROJECT = "ezbdoudxtgqqewkrzzyg"
 CLIENT_IMAGE = "postgres:17.6-bookworm"
-SAFE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 APP_SCHEMAS = ("public", "private")
+IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,36}\b")
 
 
-def required(name: str) -> str:
+def need(name: str) -> str:
     value = os.environ.get(name, "")
     if not value:
-        raise RuntimeError("Missing configuration: " + name)
+        raise RuntimeError(f"Missing configuration: {name}")
     return value
 
 
-def digest(path: Path) -> str:
+def sha256(path: Path) -> str:
     h = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
+    with path.open("rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
             h.update(block)
     return h.hexdigest()
+
+
+def safe_restore_diagnostic(stderr: str) -> None:
+    for line in stderr.splitlines():
+        if "pg_restore: error:" not in line.lower():
+            continue
+        line = UUID_RE.sub("<uuid>", line)
+        line = re.sub(r"'[^']*'", "'<redacted>'", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        print("Restore diagnostic: " + line[:420], flush=True)
+        return
 
 
 def run(args: list[str], env: dict[str, str] | None = None, timeout: int = 900) -> bytes:
@@ -49,7 +59,10 @@ def run(args: list[str], env: dict[str, str] | None = None, timeout: int = 900) 
             timeout=timeout,
         ).stdout
     except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or b"").decode("utf-8", errors="replace").lower()
+        raw = (exc.stderr or b"").decode("utf-8", errors="replace")
+        if "pg_restore" in args:
+            safe_restore_diagnostic(raw)
+        low = raw.lower()
         category = "unclassified subprocess failure"
         for marker, label in [
             ("password authentication failed", "database password rejected"),
@@ -60,23 +73,18 @@ def run(args: list[str], env: dict[str, str] | None = None, timeout: int = 900) 
             ("connection timed out", "database connection timed out"),
             ("could not translate host name", "database DNS lookup failed"),
             ("violates foreign key constraint", "restored foreign-key validation failed"),
-            ("schema \"extensions\" does not exist", "Supabase extensions schema missing"),
-            ("schema \"auth\" does not exist", "Supabase auth schema missing"),
-            ("schema \"private\" does not exist", "application private schema missing"),
-            ("function extensions.", "required Supabase extension function missing"),
-            ("extension", "required restore extension unavailable"),
             ("does not exist", "required restore object missing"),
             ("already exists", "unexpected restore object collision"),
             ("permission denied", "restore permission failure"),
         ]:
-            if marker in stderr:
+            if marker in low:
                 category = label
                 break
         print("Failure category: " + category, flush=True)
         raise RuntimeError("Restore-drill subprocess failed") from None
 
 
-def client(root: Path, env: dict[str, str], command: list[str]) -> bytes:
+def docker_pg(root: Path, env: dict[str, str], command: list[str]) -> bytes:
     args = [
         "docker", "run", "--rm", "--network", "host",
         "--user", f"{os.getuid()}:{os.getgid()}",
@@ -88,21 +96,26 @@ def client(root: Path, env: dict[str, str], command: list[str]) -> bytes:
     ]:
         if key in env:
             args += ["-e", key]
-    args += [CLIENT_IMAGE] + command
-    return run(args, env=env)
+    return run(args + [CLIENT_IMAGE] + command, env=env)
 
 
-def scalar(root: Path, env: dict[str, str], sql: str) -> str:
-    return client(
+def sql(root: Path, env: dict[str, str], statement: str) -> str:
+    return docker_pg(
         root,
         env,
-        ["psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", sql],
+        ["psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", statement],
     ).decode().strip()
 
 
-def lines(root: Path, env: dict[str, str], sql: str) -> list[str]:
-    text = scalar(root, env, sql)
-    return [] if not text else text.splitlines()
+def sql_lines(root: Path, env: dict[str, str], statement: str) -> list[str]:
+    value = sql(root, env, statement)
+    return value.splitlines() if value else []
+
+
+def qident(value: str) -> str:
+    if not IDENT.fullmatch(value):
+        raise RuntimeError("Unexpected SQL identifier")
+    return '"' + value + '"'
 
 
 def source_env(root: Path) -> dict[str, str]:
@@ -125,7 +138,7 @@ def target_env() -> dict[str, str]:
         PGPORT="55432",
         PGDATABASE="postgres",
         PGUSER="postgres",
-        PGPASSWORD=required("TARGET_PGPASSWORD"),
+        PGPASSWORD=need("TARGET_PGPASSWORD"),
         PGSSLMODE="disable",
         PGCONNECT_TIMEOUT="20",
         PGAPPNAME="rabin-engine-restore-target",
@@ -133,49 +146,70 @@ def target_env() -> dict[str, str]:
     return env
 
 
-def quote_ident(name: str) -> str:
-    if not SAFE_IDENT.fullmatch(name):
-        raise RuntimeError("Unexpected identifier in restore drill")
-    return '"' + name + '"'
+def source_role_names(roles_sql: str) -> list[str]:
+    names: list[str] = []
+    for line in roles_sql.splitlines():
+        m = re.fullmatch(r"CREATE ROLE ([A-Za-z_][A-Za-z0-9_]*);", line.strip())
+        if m:
+            names.append(m.group(1))
+    return sorted(set(names))
+
+
+def create_role_stubs(root: Path, dst: dict[str, str], roles: list[str]) -> None:
+    safe = [name for name in roles if IDENT.fullmatch(name) and name != "postgres"]
+    if not safe:
+        return
+    array = ",".join("'" + name + "'" for name in safe)
+    statement = f"""
+    do $$
+    declare r text;
+    begin
+      foreach r in array array[{array}]
+      loop
+        if not exists(select 1 from pg_roles where rolname=r) then
+          execute format('create role %I nologin', r);
+        end if;
+      end loop;
+    end$$;
+    """
+    sql(root, dst, statement)
 
 
 def main() -> None:
     os.umask(0o077)
     for key in ["PGHOST", "PGUSER", "PGPASSWORD", "PG_CA_PEM", "TARGET_PGPASSWORD"]:
-        required(key)
-    if not required("PGHOST").endswith(".supabase.com"):
+        need(key)
+    if not need("PGHOST").endswith(".supabase.com"):
         raise RuntimeError("Unexpected source database host")
-    if required("PGUSER") not in ("postgres", "postgres." + PROJECT):
+    if need("PGUSER") not in ("postgres", "postgres." + PROJECT):
         raise RuntimeError("Unexpected source database identity")
 
     with tempfile.TemporaryDirectory(prefix="rabin-restore-drill-") as tmp:
         root = Path(tmp)
-        (root / "source-ca.crt").write_text(required("PG_CA_PEM"))
-        src = source_env(root)
-        dst = target_env()
+        (root / "source-ca.crt").write_text(need("PG_CA_PEM"))
+        src, dst = source_env(root), target_env()
 
-        print("Stage: source connection and PostgreSQL major-version gate", flush=True)
-        version = scalar(root, src, "show server_version_num")
+        print("Stage: source connection and PostgreSQL 17 gate", flush=True)
+        version = sql(root, src, "show server_version_num")
         if not 170000 <= int(version) < 180000:
-            raise RuntimeError("Source database major version is no longer PostgreSQL 17")
-        if scalar(root, src, "select count(*) from storage.objects") != "0":
-            raise RuntimeError("Storage object bytes exist; DB-only restore drill is incomplete")
+            raise RuntimeError("Source database major version is not PostgreSQL 17")
+        if sql(root, src, "select count(*) from storage.objects") != "0":
+            raise RuntimeError("Storage object bytes exist; DB-only drill would be incomplete")
 
-        print("Stage: fresh custom-format production dump", flush=True)
-        client(root, src, ["pg_dump", "--format=custom", "--file=/work/database.dump", "--lock-wait-timeout=30000"])
-        toc = client(root, src, ["pg_restore", "--list", "/work/database.dump"]).decode()
+        print("Stage: fresh production dump", flush=True)
+        docker_pg(root, src, ["pg_dump", "--format=custom", "--file=/work/database.dump", "--lock-wait-timeout=30000"])
+        toc = docker_pg(root, src, ["pg_restore", "--list", "/work/database.dump"]).decode()
         if "TABLE DATA auth users" not in toc:
-            raise RuntimeError("Auth users are not present in backup table-of-contents")
-        roles = client(root, src, ["pg_dumpall", "--roles-only", "--no-role-passwords"])
-        (root / "roles.sql").write_bytes(roles)
+            raise RuntimeError("Auth users are absent from dump TOC")
+        roles_text = docker_pg(root, src, ["pg_dumpall", "--roles-only", "--no-role-passwords"]).decode()
+        (root / "roles.sql").write_text(roles_text)
 
         manifest = {
             "project": PROJECT,
             "server_version_num": version,
-            "client_image": CLIENT_IMAGE,
             "sha256": {
-                "database.dump": digest(root / "database.dump"),
-                "roles.sql": digest(root / "roles.sql"),
+                "database.dump": sha256(root / "database.dump"),
+                "roles.sql": sha256(root / "roles.sql"),
             },
             "storage_objects": 0,
         }
@@ -185,118 +219,100 @@ def main() -> None:
             for name in ["database.dump", "roles.sql", "manifest.json"]:
                 tar.add(root / name, arcname=name)
 
-        print("Stage: ephemeral age encrypt/decrypt recovery cycle", flush=True)
+        print("Stage: ephemeral age encrypt/decrypt cycle", flush=True)
         identity = root / "drill-identity.txt"
         run(["age-keygen", "-o", str(identity)])
         recipient = run(["age-keygen", "-y", str(identity)]).decode().strip()
-        encrypted = root / "backup.tar.gz.age"
-        decrypted = root / "decrypted.tar.gz"
+        encrypted, decrypted = root / "backup.tar.gz.age", root / "decrypted.tar.gz"
         run(["age", "-r", recipient, "-o", str(encrypted), str(archive)])
         run(["age", "-d", "-i", str(identity), "-o", str(decrypted), str(encrypted)])
-        if digest(archive) != digest(decrypted):
-            raise RuntimeError("Encrypted round-trip checksum mismatch")
+        if sha256(archive) != sha256(decrypted):
+            raise RuntimeError("Encrypted archive round-trip checksum mismatch")
         restored = root / "restored"
         restored.mkdir()
         with tarfile.open(decrypted, "r:gz") as tar:
             tar.extractall(restored)
         restored_manifest = json.loads((restored / "manifest.json").read_text())
         for name in ["database.dump", "roles.sql"]:
-            if digest(restored / name) != restored_manifest["sha256"][name]:
-                raise RuntimeError("Restored archive member checksum mismatch")
+            if sha256(restored / name) != restored_manifest["sha256"][name]:
+                raise RuntimeError("Archive member checksum mismatch")
 
-        print("Stage: isolated PostgreSQL 17 target preparation", flush=True)
-        if not scalar(root, dst, "show server_version_num").startswith("17"):
-            raise RuntimeError("Isolated target is not PostgreSQL 17")
-        prep = """
-        create schema if not exists extensions;
-        create extension if not exists pgcrypto with schema extensions;
-        create extension if not exists "uuid-ossp" with schema extensions;
-        do $$
-        declare r text;
-        begin
-          foreach r in array array['anon','authenticated','service_role','authenticator','supabase_auth_admin','supabase_storage_admin','supabase_realtime_admin','supabase_replication_admin','supabase_read_only_user','dashboard_user']
-          loop
-            if not exists(select 1 from pg_roles where rolname=r) then
-              execute format('create role %I nologin', r);
-            end if;
-          end loop;
-        end$$;
-        create schema if not exists auth;
-        create table if not exists auth.users(id uuid primary key);
-        create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
-        create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
-        create or replace function auth.role() returns text language sql stable as $$ select null::text $$;
-        """
-        scalar(root, dst, prep)
+        print("Stage: isolated PostgreSQL 17 preparation", flush=True)
+        if not sql(root, dst, "show server_version_num").startswith("17"):
+            raise RuntimeError("Restore target is not PostgreSQL 17")
+        sql(root, dst, "create schema if not exists extensions")
+        sql(root, dst, "create extension if not exists pgcrypto with schema extensions")
+        sql(root, dst, 'create extension if not exists "uuid-ossp" with schema extensions')
+        create_role_stubs(root, dst, source_role_names(roles_text))
+        sql(root, dst, "create schema if not exists auth")
+        sql(root, dst, "create table if not exists auth.users(id uuid primary key)")
+        sql(root, dst, "create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$")
+        sql(root, dst, "create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$")
+        sql(root, dst, "create or replace function auth.role() returns text language sql stable as $$ select null::text $$")
 
         for schema in APP_SCHEMAS:
-            scalar(root, dst, f"drop schema if exists {quote_ident(schema)} cascade")
+            sql(root, dst, f"drop schema if exists {qident(schema)} cascade")
             if f"SCHEMA - {schema}" not in toc:
-                scalar(root, dst, f"create schema {quote_ident(schema)}")
+                sql(root, dst, f"create schema {qident(schema)}")
 
-        print("Stage: restore public + private application schemas - pre-data and data", flush=True)
-        common = ["pg_restore"]
+        restore = ["pg_restore"]
         for schema in APP_SCHEMAS:
-            common += ["--schema", schema]
-        common += ["--no-owner", "--exit-on-error", "/work/restored/database.dump"]
-        client(root, dst, common[:-1] + ["--section=pre-data", common[-1]])
-        client(root, dst, common[:-1] + ["--section=data", common[-1]])
+            restore += ["--schema", schema]
+        restore += ["--no-owner", "--exit-on-error", "/work/restored/database.dump"]
 
-        # FK constraints are post-data. Seed an isolated auth.users stub with every
-        # UUID observed in restored app data so auth-user FKs can be validated
-        # without restoring managed Supabase Auth internals into vanilla PostgreSQL.
-        seed_auth = """
+        print("Stage: restore application pre-data", flush=True)
+        docker_pg(root, dst, restore[:-1] + ["--section=pre-data", restore[-1]])
+        print("Stage: restore application data", flush=True)
+        docker_pg(root, dst, restore[:-1] + ["--section=data", restore[-1]])
+
+        # Supabase-managed Auth is not restored into vanilla PostgreSQL. Seed only
+        # identifiers needed to validate application foreign keys in post-data.
+        sql(root, dst, """
         do $$
         declare c record;
         begin
-          for c in
-            select table_schema,table_name,column_name from information_schema.columns
-            where table_schema in ('public','private') and data_type='uuid'
+          for c in select table_schema,table_name,column_name from information_schema.columns
+                   where table_schema in ('public','private') and data_type='uuid'
           loop
-            execute format(
-              'insert into auth.users(id) select distinct %I from %I.%I where %I is not null on conflict do nothing',
-              c.column_name,c.table_schema,c.table_name,c.column_name
-            );
+            execute format('insert into auth.users(id) select distinct %I from %I.%I where %I is not null on conflict do nothing',
+              c.column_name,c.table_schema,c.table_name,c.column_name);
           end loop;
         end$$;
-        """
-        scalar(root, dst, seed_auth)
+        """)
 
-        print("Stage: restore public + private application schemas - post-data, RLS, policies and ACLs", flush=True)
-        client(root, dst, common[:-1] + ["--section=post-data", common[-1]])
+        print("Stage: restore application post-data/RLS/policies", flush=True)
+        docker_pg(root, dst, restore[:-1] + ["--section=post-data", restore[-1]])
 
-        print("Stage: row-count and security-state comparison", flush=True)
+        print("Stage: compare data and security state", flush=True)
         table_sql = "select table_schema||'.'||table_name from information_schema.tables where table_schema in ('public','private') and table_type='BASE TABLE' order by table_schema,table_name"
-        source_tables = lines(root, src, table_sql)
-        target_tables = lines(root, dst, table_sql)
+        source_tables, target_tables = sql_lines(root, src, table_sql), sql_lines(root, dst, table_sql)
         if source_tables != target_tables:
             raise RuntimeError("Application table set differs after restore")
         for qualified in source_tables:
             schema, table = qualified.split('.', 1)
-            qs, qt = quote_ident(schema), quote_ident(table)
-            if scalar(root, src, f"select count(*) from {qs}.{qt}") != scalar(root, dst, f"select count(*) from {qs}.{qt}"):
-                raise RuntimeError("Application table row count differs after restore")
+            qs, qt = qident(schema), qident(table)
+            if sql(root, src, f"select count(*) from {qs}.{qt}") != sql(root, dst, f"select count(*) from {qs}.{qt}"):
+                raise RuntimeError("Application row count differs after restore")
 
         rls_sql = "select n.nspname||'.'||c.relname||'='||c.relrowsecurity::int from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind='r' order by n.nspname,c.relname"
-        if lines(root, src, rls_sql) != lines(root, dst, rls_sql):
-            raise RuntimeError("RLS enablement differs after restore")
-        policy_sql = "select schemaname||'='||count(*) from pg_policies where schemaname in ('public','private') group by schemaname order by schemaname"
-        if lines(root, src, policy_sql) != lines(root, dst, policy_sql):
+        if sql_lines(root, src, rls_sql) != sql_lines(root, dst, rls_sql):
+            raise RuntimeError("RLS state differs after restore")
+        policies = "select schemaname||'='||count(*) from pg_policies where schemaname in ('public','private') group by schemaname order by schemaname"
+        if sql_lines(root, src, policies) != sql_lines(root, dst, policies):
             raise RuntimeError("RLS policy count differs after restore")
-        function_sql = "select n.nspname||'='||count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') group by n.nspname order by n.nspname"
-        if lines(root, src, function_sql) != lines(root, dst, function_sql):
+        functions = "select n.nspname||'='||count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') group by n.nspname order by n.nspname"
+        if sql_lines(root, src, functions) != sql_lines(root, dst, functions):
             raise RuntimeError("Application function count differs after restore")
-        run_sql = "select count(*) from public.design_runs where server_generated is true"
-        if scalar(root, src, run_sql) != scalar(root, dst, run_sql):
+        if sql(root, src, "select count(*) from public.design_runs where server_generated is true") != sql(root, dst, "select count(*) from public.design_runs where server_generated is true"):
             raise RuntimeError("Persisted server calculation count differs after restore")
 
-        print(f"PASS: isolated restore recovered {len(source_tables)} public/private application tables with matching row counts, RLS, policies and persisted calculations; age round-trip and archive checksums verified.", flush=True)
-        print("Scope note: managed Supabase Auth service configuration and a historical backup encrypted to the owner's offline age key remain outside this runner-local drill.", flush=True)
+        print(f"PASS: recovered {len(source_tables)} public/private application tables with matching row counts, RLS, policies and persisted calculations; age round-trip and archive checksums verified.", flush=True)
+        print("Scope: managed Supabase Auth service configuration and a historical Drive archive encrypted to the owner's offline age identity are not exercised by this runner-local drill.", flush=True)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print("Restore drill failed (" + type(exc).__name__ + "). No production writes were attempted.", flush=True)
+        print(f"Restore drill failed ({type(exc).__name__}). No production writes were attempted.", flush=True)
         raise SystemExit(1)
