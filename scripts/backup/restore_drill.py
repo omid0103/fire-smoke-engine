@@ -252,8 +252,7 @@ def main() -> None:
 
         for schema in APP_SCHEMAS:
             sql(root, dst, f"drop schema if exists {qident(schema)} cascade")
-            if f"SCHEMA - {schema}" not in toc:
-                sql(root, dst, f"create schema {qident(schema)}")
+            sql(root, dst, f"create schema {qident(schema)}")
 
         restore = ["pg_restore", "--dbname=postgres"]
         for schema in APP_SCHEMAS:
