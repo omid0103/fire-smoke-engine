@@ -60,6 +60,10 @@ def run(args: list[str], env: dict[str, str] | None = None, timeout: int = 900) 
             ("connection timed out", "database connection timed out"),
             ("could not translate host name", "database DNS lookup failed"),
             ("violates foreign key constraint", "restored foreign-key validation failed"),
+            ("schema \"extensions\" does not exist", "Supabase extensions schema missing"),
+            ("schema \"auth\" does not exist", "Supabase auth schema missing"),
+            ("schema \"private\" does not exist", "application private schema missing"),
+            ("function extensions.", "required Supabase extension function missing"),
             ("extension", "required restore extension unavailable"),
             ("does not exist", "required restore object missing"),
             ("already exists", "unexpected restore object collision"),
@@ -204,8 +208,9 @@ def main() -> None:
         if not scalar(root, dst, "show server_version_num").startswith("17"):
             raise RuntimeError("Isolated target is not PostgreSQL 17")
         prep = """
-        create extension if not exists pgcrypto;
-        create extension if not exists "uuid-ossp";
+        create schema if not exists extensions;
+        create extension if not exists pgcrypto with schema extensions;
+        create extension if not exists "uuid-ossp" with schema extensions;
         do $$
         declare r text;
         begin
