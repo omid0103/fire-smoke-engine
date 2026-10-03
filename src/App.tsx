@@ -1,3 +1,4 @@
+import './demo-access.css'
 import SubscriptionPage from './pages/SubscriptionPage'
 import SubscriptionGate from './components/SubscriptionGate'
 import DemoRestrictedRoute from './components/DemoRestrictedRoute'
