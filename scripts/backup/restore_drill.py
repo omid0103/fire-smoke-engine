@@ -255,7 +255,7 @@ def main() -> None:
             if f"SCHEMA - {schema}" not in toc:
                 sql(root, dst, f"create schema {qident(schema)}")
 
-        restore = ["pg_restore"]
+        restore = ["pg_restore", "--dbname=postgres"]
         for schema in APP_SCHEMAS:
             restore += ["--schema", schema]
         restore += ["--no-owner", "--exit-on-error", "/work/restored/database.dump"]
@@ -265,8 +265,6 @@ def main() -> None:
         print("Stage: restore application data", flush=True)
         docker_pg(root, dst, restore[:-1] + ["--section=data", restore[-1]])
 
-        # Supabase-managed Auth is not restored into vanilla PostgreSQL. Seed only
-        # identifiers needed to validate application foreign keys in post-data.
         sql(root, dst, """
         do $$
         declare c record;
