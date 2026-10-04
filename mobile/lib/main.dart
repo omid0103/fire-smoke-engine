@@ -4,8 +4,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 const String _appUrl = 'https://engin.rabinazar.ir';
 const String _appTitle = 'نرم‌افزار محاسباتی رابین آذر | Rabin Azar Fire Engineering';
-const Color _background = Color(0xFF111417);
+const Color _background = Color(0xFF050608);
 const Color _accent = Color(0xFFB3261E);
+const Color _brandBlue = Color(0xFF0A477D);
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,16 +67,14 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
         NavigationDelegate(
           onProgress: (progress) {
             if (!mounted) return;
-            setState(() {
-              _progress = progress;
-              _isLoading = progress < 100;
-            });
+            setState(() => _progress = progress);
           },
           onPageStarted: (_) {
             if (!mounted) return;
             setState(() {
               _isLoading = true;
               _hasMainFrameError = false;
+              _progress = 0;
             });
           },
           onPageFinished: (_) {
@@ -101,8 +100,14 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
             return NavigationDecision.prevent;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_appUrl));
+      );
+
+    _loadFreshApp();
+  }
+
+  Future<void> _loadFreshApp() async {
+    await _controller.clearCache();
+    await _controller.loadRequest(Uri.parse(_appUrl));
   }
 
   Future<void> _handleSystemBack() async {
@@ -117,8 +122,9 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
     setState(() {
       _hasMainFrameError = false;
       _isLoading = true;
+      _progress = 0;
     });
-    await _controller.loadRequest(Uri.parse(_appUrl));
+    await _loadFreshApp();
   }
 
   @override
@@ -135,13 +141,9 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
           child: Stack(
             children: [
               Positioned.fill(child: WebViewWidget(controller: _controller)),
-              if (_isLoading)
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: LinearProgressIndicator(
-                    value: _progress > 0 ? _progress / 100 : null,
-                    minHeight: 2,
-                  ),
+              if (_isLoading && !_hasMainFrameError)
+                Positioned.fill(
+                  child: _BrandSplash(progress: _progress),
                 ),
               if (_hasMainFrameError)
                 Positioned.fill(
@@ -150,37 +152,115 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.cloud_off_rounded, size: 56),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'اتصال به سامانه برقرار نشد',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                        child: Directionality(
+                          textDirection: TextDirection.rtl,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset(
+                                'assets/rabin_azar_logo.jpg',
+                                width: 210,
+                                fit: BoxFit.contain,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'اینترنت دستگاه را بررسی کنید و دوباره تلاش کنید.',
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            FilledButton.icon(
-                              onPressed: _retry,
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('تلاش مجدد'),
-                            ),
-                          ],
+                              const SizedBox(height: 24),
+                              const Icon(Icons.cloud_off_rounded, size: 46),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'اتصال به سامانه برقرار نشد',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'اینترنت دستگاه را بررسی کنید و دوباره تلاش کنید.',
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 20),
+                              FilledButton.icon(
+                                onPressed: _retry,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('تلاش مجدد'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BrandSplash extends StatelessWidget {
+  const _BrandSplash({required this.progress});
+
+  final int progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _background,
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 34),
+            child: Column(
+              children: [
+                const Spacer(flex: 3),
+                Image.asset(
+                  'assets/rabin_azar_logo.jpg',
+                  width: 300,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'نرم‌افزار محاسباتی رابین آذر',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Rabin Azar Fire Engineering',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    color: Color(0xFFB9BEC4),
+                    fontSize: 13,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const Spacer(flex: 2),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress > 0 ? progress / 100 : null,
+                    minHeight: 3,
+                    backgroundColor: _brandBlue.withValues(alpha: 0.22),
+                    color: _accent,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  progress > 0 ? 'در حال بارگذاری... $progress٪' : 'در حال اتصال به سامانه...',
+                  style: const TextStyle(
+                    color: Color(0xFF8D949B),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
