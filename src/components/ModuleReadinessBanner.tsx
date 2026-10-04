@@ -1,5 +1,6 @@
 import type { ModuleReadiness, Project } from '../types'
 import { analyzeProjectRequirements, readinessLabel } from '../lib/projectRules'
+import '../module-readiness.css'
 
 type Props = { project: Project | null; module: ModuleReadiness['module'] }
 
