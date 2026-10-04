@@ -21,6 +21,19 @@ export const EXTRA_DESIGN_GROUPS: DesignFieldGroup[] = [
     ],
   },
   {
+    key: 'cad-spacing-criteria',
+    title: 'معیارهای صریح جانمایی و کنترل فاصله',
+    description: 'این مقادیر باید از ضابطه/Edition مبنای همان پروژه وارد شوند. Auto Design از مقدار پنهان یا حد عمومی استفاده نمی‌کند.',
+    fields: [
+      { path: 'alarm.max_detector_spacing_m', label: 'حداکثر فاصله مجاز دتکتورها', kind: 'number', unit: 'm', hint: 'طبق نوع دتکتور، ارتفاع/شکل سقف، استاندارد و AHJ پروژه.' },
+      { path: 'alarm.min_detector_wall_clearance_m', label: 'حداقل فاصله دتکتور از دیوار/مانع', kind: 'number', unit: 'm' },
+      { path: 'suppression.max_sprinkler_spacing_m', label: 'حداکثر فاصله مجاز اسپرینکلرها', kind: 'number', unit: 'm', hint: 'طبق Hazard، نوع اسپرینکلر و Edition پروژه.' },
+      { path: 'suppression.min_sprinkler_wall_clearance_m', label: 'حداقل فاصله اسپرینکلر از دیوار/مانع', kind: 'number', unit: 'm' },
+      { path: 'smoke.min_extract_spacing_m', label: 'حداقل فاصله نقاط تخلیه/گریل‌ها', kind: 'number', unit: 'm', hint: 'فقط در صورت الزام/مبنای طراحی پروژه ثبت شود.' },
+      { path: 'smoke.min_route_clearance_m', label: 'حداقل فاصله مسیر کانال از مانع', kind: 'number', unit: 'm' },
+    ],
+  },
+  {
     key: 'alarm-auto-design',
     title: 'ورودی‌های تکمیلی Auto Design — اعلام حریق',
     description: 'پارامترهایی که برای اجرای خودکار افت ولتاژ و تولید خروجی قابل ردیابی لازم‌اند.',
