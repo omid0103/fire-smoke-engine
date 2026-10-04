@@ -85,7 +85,7 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
             });
           },
           onWebResourceError: (error) {
-            if (!mounted || !error.isForMainFrame) return;
+            if (!mounted || error.isForMainFrame != true) return;
             setState(() {
               _hasMainFrameError = true;
               _isLoading = false;
@@ -104,12 +104,12 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
       ..loadRequest(Uri.parse(_appUrl));
   }
 
-  Future<bool> _handleBack() async {
+  Future<void> _handleSystemBack() async {
     if (await _controller.canGoBack()) {
       await _controller.goBack();
-      return false;
+      return;
     }
-    return true;
+    await SystemNavigator.pop();
   }
 
   Future<void> _retry() async {
@@ -122,8 +122,13 @@ class _EngineeringWebViewState extends State<EngineeringWebView> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _handleBack,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          await _handleSystemBack();
+        }
+      },
       child: Scaffold(
         body: SafeArea(
           child: Stack(
