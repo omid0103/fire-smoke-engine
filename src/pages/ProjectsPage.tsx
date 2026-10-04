@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Building2, ChevronLeft, CirclePlus, MapPin, Search, X } from 'lucide-react'
+import { Building2, ChevronLeft, CirclePlus, ClipboardCheck, MapPin, Search, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { EngineeringDesignInput, Project } from '../types'
 import { formatDate, formatNumber } from '../lib/persian'
@@ -15,6 +15,12 @@ import {
   setDesignValue,
   type DesignField,
 } from '../lib/projectDesign'
+import {
+  analyzeDesignRequirements,
+  analyzeProjectRequirements,
+  readinessLabel,
+  requirementStatusLabel,
+} from '../lib/projectRules'
 import '../project-form.css'
 
 type ProjectForm = {
@@ -38,6 +44,7 @@ const buildingUses = ['مسکونی','اداری','تجاری','مختلط','پ�
 
 export default function ProjectsPage(){
   const [editing,setEditing]=useState<string|null>(null)
+  const [assessmentProject,setAssessmentProject]=useState<Project|null>(null)
   const [projects,setProjects]=useState<Project[]>([])
   const [search,setSearch]=useState('')
   const [open,setOpen]=useState(false)
@@ -89,7 +96,15 @@ export default function ProjectsPage(){
       const u=(await supabase.auth.getUser()).data.user
       const currentProject=editing?projects.find(p=>p.id===editing):null
       const grossArea=form.design.geometry.gross_built_area_m2??null
-      const projectData={...(currentProject?.project_data||{}),design_input_v1:form.design,design_schema_version:1}
+      const floorsAbove=Number(form.floors_above)||0
+      const floorsBelow=Number(form.floors_below)||0
+      const assessment=analyzeDesignRequirements({building_use:form.building_use,floors_above:floorsAbove,floors_below:floorsBelow},form.design)
+      const projectData={
+        ...(currentProject?.project_data||{}),
+        design_input_v1:form.design,
+        design_schema_version:1,
+        requirements_assessment_v1:assessment,
+      }
       const base={
         name:form.name,
         project_code:form.project_code||null,
@@ -97,8 +112,8 @@ export default function ProjectsPage(){
         building_use:form.building_use,
         city:form.city||null,
         address_text:form.address_text||null,
-        floors_above:Number(form.floors_above)||0,
-        floors_below:Number(form.floors_below)||0,
+        floors_above:floorsAbove,
+        floors_below:floorsBelow,
         total_area_m2:grossArea,
         erp_project_id:form.erp_project_id||null,
         project_data:projectData,
@@ -119,13 +134,16 @@ export default function ProjectsPage(){
   }
 
   const filtered=projects.filter(p=>`${p.name} ${p.project_code||''} ${p.client_name||''}`.toLowerCase().includes(search.toLowerCase()))
+  const activeAssessment=assessmentProject?analyzeProjectRequirements(assessmentProject):null
 
   return <div className="page-stack">
-    <div className="page-title-row"><div><span className="eyebrow">PROJECT CONTROL</span><h1>پروژه‌های مهندسی</h1><p>مشخصات پروژه یک‌بار ثبت می‌شود و ماژول‌های اعلام، اطفا و کنترل دود از همان ورودی‌ها استفاده می‌کنند.</p></div><button className="primary-button" onClick={startCreate}><CirclePlus size={18}/> پروژه جدید</button></div>
+    <div className="page-title-row"><div><span className="eyebrow">PROJECT CONTROL</span><h1>پروژه‌های مهندسی</h1><p>مشخصات پروژه یک‌بار ثبت می‌شود؛ موتور الزامات، داده‌های ناقص و آمادگی ماژول‌های اعلام، اطفا و کنترل دود را از همان پرونده تحلیل می‌کند.</p></div><button className="primary-button" onClick={startCreate}><CirclePlus size={18}/> پروژه جدید</button></div>
     <div className="toolbar"><div className="search-box"><Search size={17}/><input placeholder="جستجو در پروژه‌ها…" value={search} onChange={e=>setSearch(e.target.value)}/></div><span>{formatNumber(filtered.length,0)} پروژه</span></div>
     <div className="project-grid">{filtered.map(p=>{
       const d=getProjectDesignInput(p)
       const completeness=projectEngineeringCompleteness(p)
+      const assessment=analyzeProjectRequirements(p)
+      const reviewCount=assessment?.systems.filter(s=>s.status==='required'||s.status==='review').length||0
       return <article className="project-card" key={p.id}>
         <div className="project-card__top"><div className="project-card__icon"><Building2/></div><StatusPill tone={p.status==='approved'?'ok':p.status==='review'?'warn':'info'}>{p.status}</StatusPill></div>
         <h3>{p.name}</h3><div className="project-code">{p.project_code||'بدون کد پروژه'}</div>
@@ -136,9 +154,10 @@ export default function ProjectsPage(){
           <span>واحدها: {d.geometry.unit_count!=null?formatNumber(d.geometry.unit_count,0):'—'}</span>
           <span>زیربنا: {p.total_area_m2?formatNumber(p.total_area_m2,0)+' m²':'—'}</span>
           <span>تکمیل ورودی مهندسی: {formatNumber(completeness,0)}%</span>
+          <span>سیستم‌های نیازمند تصمیم/بازبینی: {formatNumber(reviewCount,0)}</span>
           <span>آخرین تغییر: {formatDate(p.updated_at)}</span>
         </div>
-        <div className="project-card__foot"><span>{p.client_name||'کارفرما ثبت نشده'}</span><button className="secondary-button" onClick={()=>startEdit(p)}>ویرایش <ChevronLeft size={18}/></button></div>
+        <div className="project-card__foot project-card__actions"><span>{p.client_name||'کارفرما ثبت نشده'}</span><div><button className="secondary-button" onClick={()=>setAssessmentProject(p)}><ClipboardCheck size={17}/> تحلیل الزامات</button><button className="secondary-button" onClick={()=>startEdit(p)}>ویرایش <ChevronLeft size={18}/></button></div></div>
       </article>
     })}</div>
 
@@ -171,8 +190,28 @@ export default function ProjectsPage(){
         })}</div>
       </section>)}
 
-      <div className="project-form-note">پارامترهای طراحی عددی مانند Density، Design Area، فشار، دبی، ACH و فشار مثبت باید مطابق نسخه استاندارد و نظر مرجع تأیید پروژه تعیین شوند؛ نرم‌افزار آن‌ها را بدون مبنای ثبت‌شده حدس نمی‌زند.</div>
-      <div className="modal-actions sticky-modal-actions"><button type="button" className="secondary-button" onClick={()=>setOpen(false)}>انصراف</button><button className="primary-button" disabled={busy}>{busy?'در حال ثبت…':editing?'ذخیره تغییرات پروژه':'ثبت پروژه'}</button></div>
+      <div className="project-form-note">موتور الزامات فقط غربالگری و کنترل آمادگی انجام می‌دهد. پارامترهای طراحی عددی مانند Density، Design Area، فشار، دبی، ACH، فاصله تجهیزات و فشار مثبت باید مطابق نسخه استاندارد و نظر مرجع تأیید پروژه تعیین/تأیید شوند.</div>
+      <div className="modal-actions sticky-modal-actions"><button type="button" className="secondary-button" onClick={()=>setOpen(false)}>انصراف</button><button className="primary-button" disabled={busy}>{busy?'در حال ثبت…':editing?'ذخیره و تحلیل مجدد':'ثبت و تحلیل پروژه'}</button></div>
     </form></div>}
+
+    {assessmentProject&&activeAssessment&&<div className="modal-backdrop"><div className="modal-card engineering-project-modal requirement-modal">
+      <div className="modal-head sticky-modal-head"><div><span className="eyebrow">PROJECT REQUIREMENT ENGINE</span><h2>تحلیل الزامات — {assessmentProject.name}</h2><p>{activeAssessment.scope_notice}</p></div><button type="button" className="icon-button" onClick={()=>setAssessmentProject(null)}><X/></button></div>
+
+      <section className="project-form-section">
+        <div className="project-form-section__head"><h3>سیستم‌ها و وضعیت تصمیم</h3><p>Required فقط برای الزام صریح ثبت‌شده استفاده می‌شود؛ Review یعنی شرایط پروژه باید با ضابطه/AHJ کنترل شود.</p></div>
+        <div className="requirement-system-grid">{activeAssessment.systems.map(system=><article className={`requirement-system requirement-${system.status}`} key={system.key}><div className="requirement-system__head"><strong>{system.label}</strong><span>{requirementStatusLabel(system.status)}</span></div><ul>{system.reasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul><small>{system.standards.join(' • ')}</small></article>)}</div>
+      </section>
+
+      <section className="project-form-section">
+        <div className="project-form-section__head"><h3>آمادگی ماژول‌های محاسباتی</h3><p>درصد آمادگی بر اساس وجود ورودی‌های لازم برای محاسبات فعلی نرم‌افزار است.</p></div>
+        <div className="readiness-grid">{Object.values(activeAssessment.modules).map(module=><article className={`readiness-card readiness-${module.status}`} key={module.module}><div className="readiness-card__top"><strong>{module.label}</strong><b>{formatNumber(module.score,0)}%</b></div><div className="readiness-meter"><i style={{width:`${module.score}%`}}/></div><span>{readinessLabel(module.status)}</span>{module.missing.length>0&&<details><summary>{formatNumber(module.missing.length,0)} ورودی ناقص</summary><ul>{module.missing.map(item=><li key={item}>{item}</li>)}</ul></details>}</article>)}</div>
+      </section>
+
+      {activeAssessment.global_missing.length>0&&<section className="project-form-section"><div className="project-form-section__head"><h3>داده‌های پایه‌ای که هنوز ناقص‌اند</h3><p>این موارد ممکن است روی بیش از یک سیستم اثر بگذارند.</p></div><div className="missing-chip-list">{activeAssessment.global_missing.map(item=><span key={item}>{item}</span>)}</div></section>}
+
+      <section className="project-form-section"><div className="project-form-section__head"><h3>مراجع در دامنه بررسی</h3><p>نسخه دقیق و ضابطه مصوب پروژه بر هر مقدار پیش‌فرض مقدم است.</p></div><div className="standards-chip-list">{activeAssessment.standards_in_scope.map(item=><span key={item}>{item}</span>)}</div></section>
+
+      <div className="modal-actions sticky-modal-actions"><span className="requirement-engine-version">Engine: {activeAssessment.engine_version}</span><button type="button" className="primary-button" onClick={()=>{setAssessmentProject(null);startEdit(assessmentProject)}}>تکمیل ورودی‌های پروژه</button></div>
+    </div></div>}
   </div>
 }
