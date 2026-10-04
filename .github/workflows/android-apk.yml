@@ -32,7 +32,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Create Android Flutter shell
+      - name: Create branded Android Flutter shell
         run: |
           rm -rf .mobile-build
           flutter create \
@@ -43,11 +43,32 @@ jobs:
           cp mobile/lib/main.dart .mobile-build/lib/main.dart
           rm -rf .mobile-build/test
 
+          mkdir -p .mobile-build/assets
+          base64 --decode mobile/assets/rabin_logo_480.b64 > .mobile-build/assets/rabin_azar_logo.jpg
+
+          mkdir -p .mobile-build/android/app/src/main/res/drawable
+          base64 --decode mobile/assets/rabin_icon_192.b64 > .mobile-build/android/app/src/main/res/drawable/rabin_launcher.jpg
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          pubspec = Path('.mobile-build/pubspec.yaml')
+          text = pubspec.read_text(encoding='utf-8')
+          marker = '  uses-material-design: true\n'
+          if 'assets/rabin_azar_logo.jpg' not in text:
+              text = text.replace(
+                  marker,
+                  marker + '  assets:\n    - assets/rabin_azar_logo.jpg\n',
+                  1,
+              )
+          pubspec.write_text(text, encoding='utf-8')
+          PY
+
       - name: Add WebView dependency
         working-directory: .mobile-build
         run: flutter pub add webview_flutter
 
-      - name: Configure Android release shell
+      - name: Configure Android branding and release shell
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -60,8 +81,22 @@ jobs:
                   '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />',
                   1,
               )
-          text = text.replace('android:label="engineering"', 'android:label="Rabin Azar Fire Engineering"')
+          text = text.replace('android:label="engineering"', 'android:label="رابین آذر"')
+          text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/rabin_launcher"')
           manifest.write_text(text, encoding='utf-8')
+
+          splash = '''<?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:drawable="@android:color/black" />
+          </layer-list>
+          '''
+          for rel in (
+              'android/app/src/main/res/drawable/launch_background.xml',
+              'android/app/src/main/res/drawable-v21/launch_background.xml',
+          ):
+              path = Path('.mobile-build') / rel
+              if path.exists():
+                  path.write_text(splash, encoding='utf-8')
           PY
 
       - name: Analyze Flutter app
@@ -70,13 +105,13 @@ jobs:
 
       - name: Build release APK
         working-directory: .mobile-build
-        run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+        run: flutter build apk --release --build-name=1.1.0 --build-number=${{ github.run_number }}
 
       - name: Prepare APK artifact
         run: |
           mkdir -p dist
           cp .mobile-build/build/app/outputs/flutter-apk/app-release.apk \
-             dist/RabinAzar-FireEngineering-v1.0.${{ github.run_number }}.apk
+             dist/RabinAzar-FireEngineering-v1.1.${{ github.run_number }}.apk
           sha256sum dist/*.apk | tee dist/SHA256SUMS.txt
 
       - name: Upload installable APK
