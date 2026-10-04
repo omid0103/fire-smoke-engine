@@ -167,6 +167,44 @@ export type EngineeringDesignInput = {
   }
 }
 
+export type ProjectSystemKey = 'fire_alarm' | 'sprinkler' | 'standpipe' | 'fire_pump' | 'smoke_control' | 'stair_pressurization' | 'clean_agent' | 'kitchen_hood'
+export type RequirementStatus = 'required' | 'review' | 'recommended' | 'not_indicated'
+export type ReadinessStatus = 'ready' | 'partial' | 'blocked'
+
+export type RequirementDecision = {
+  key: ProjectSystemKey
+  label: string
+  status: RequirementStatus
+  confidence: 'explicit' | 'screening'
+  reasons: string[]
+  standards: string[]
+}
+
+export type ModuleReadiness = {
+  module: 'alarm' | 'suppression' | 'smoke'
+  label: string
+  status: ReadinessStatus
+  score: number
+  missing: string[]
+  available: string[]
+  notes: string[]
+}
+
+export type ProjectRequirementAssessment = {
+  engine_version: string
+  generated_at: string
+  scope_notice: string
+  systems: RequirementDecision[]
+  modules: {
+    alarm: ModuleReadiness
+    suppression: ModuleReadiness
+    smoke: ModuleReadiness
+  }
+  global_missing: string[]
+  standards_in_scope: string[]
+  trace: string[]
+}
+
 export type Project = {
   id: string
   organization_id: string
@@ -180,7 +218,10 @@ export type Project = {
   floors_above: number | null
   floors_below: number | null
   total_area_m2: number | null
-  project_data: (Record<string, unknown> & { design_input_v1?: EngineeringDesignInput }) | null
+  project_data: (Record<string, unknown> & {
+    design_input_v1?: EngineeringDesignInput
+    requirements_assessment_v1?: ProjectRequirementAssessment
+  }) | null
   status: 'draft' | 'active' | 'review' | 'approved' | 'archived'
   created_at: string
   updated_at: string
