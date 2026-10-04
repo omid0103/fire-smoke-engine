@@ -1,0 +1,90 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android Flutter shell
+        run: |
+          rm -rf .mobile-build
+          flutter create \
+            --platforms=android \
+            --org ir.rabinazar \
+            --project-name engineering \
+            .mobile-build
+          cp mobile/lib/main.dart .mobile-build/lib/main.dart
+          rm -rf .mobile-build/test
+
+      - name: Add WebView dependency
+        working-directory: .mobile-build
+        run: flutter pub add webview_flutter
+
+      - name: Configure Android release shell
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('.mobile-build/android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          if 'android.permission.INTERNET' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />',
+                  1,
+              )
+          text = text.replace('android:label="engineering"', 'android:label="Rabin Azar Fire Engineering"')
+          manifest.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Analyze Flutter app
+        working-directory: .mobile-build
+        run: flutter analyze
+
+      - name: Build release APK
+        working-directory: .mobile-build
+        run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+
+      - name: Prepare APK artifact
+        run: |
+          mkdir -p dist
+          cp .mobile-build/build/app/outputs/flutter-apk/app-release.apk \
+             dist/RabinAzar-FireEngineering-v1.0.${{ github.run_number }}.apk
+          sha256sum dist/*.apk | tee dist/SHA256SUMS.txt
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RabinAzar-FireEngineering-Android
+          path: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
