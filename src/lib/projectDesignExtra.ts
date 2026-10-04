@@ -2,12 +2,41 @@ import { DESIGN_GROUPS, type DesignFieldGroup } from './projectDesign'
 
 export const EXTRA_DESIGN_GROUPS: DesignFieldGroup[] = [
   {
+    key: 'cad-bim-geometry',
+    title: 'هندسه و نقاط مرجع CAD / BIM',
+    description: 'در صورت ثبت این مختصات، Auto Design از هندسه واقعی‌تر استفاده می‌کند؛ در غیر این صورت فقط یک مستطیل مفهومی از روی مساحت ساخته می‌شود.',
+    fields: [
+      { path: 'geometry.design_plan_width_m', label: 'عرض پلان مبنای طراحی', kind: 'number', unit: 'm' },
+      { path: 'geometry.design_plan_length_m', label: 'طول پلان مبنای طراحی', kind: 'number', unit: 'm' },
+      { path: 'geometry.service_core_x_m', label: 'مختصات X هسته خدمات/رایزر', kind: 'number', unit: 'm' },
+      { path: 'geometry.service_core_y_m', label: 'مختصات Y هسته خدمات/رایزر', kind: 'number', unit: 'm' },
+      { path: 'alarm.panel_x_m', label: 'مختصات X پنل اعلام حریق', kind: 'number', unit: 'm' },
+      { path: 'alarm.panel_y_m', label: 'مختصات Y پنل اعلام حریق', kind: 'number', unit: 'm' },
+      { path: 'suppression.riser_x_m', label: 'مختصات X رایزر اطفا', kind: 'number', unit: 'm' },
+      { path: 'suppression.riser_y_m', label: 'مختصات Y رایزر اطفا', kind: 'number', unit: 'm' },
+      { path: 'smoke.exhaust_shaft_x_m', label: 'مختصات X شفت تخلیه دود', kind: 'number', unit: 'm' },
+      { path: 'smoke.exhaust_shaft_y_m', label: 'مختصات Y شفت تخلیه دود', kind: 'number', unit: 'm' },
+      { path: 'smoke.makeup_shaft_x_m', label: 'مختصات X شفت هوای جبرانی', kind: 'number', unit: 'm' },
+      { path: 'smoke.makeup_shaft_y_m', label: 'مختصات Y شفت هوای جبرانی', kind: 'number', unit: 'm' },
+    ],
+  },
+  {
     key: 'alarm-auto-design',
     title: 'ورودی‌های تکمیلی Auto Design — اعلام حریق',
     description: 'پارامترهایی که برای اجرای خودکار افت ولتاژ و تولید خروجی قابل ردیابی لازم‌اند.',
     fields: [
       { path: 'alarm.conductor_material', label: 'جنس هادی کابل', kind: 'select', options: [{value:'Copper',label:'مس / Copper'},{value:'Aluminum',label:'آلومینیوم / Aluminum'},{value:'Other',label:'سایر'}] },
       { path: 'alarm.conductor_resistivity_ohm_mm2_m', label: 'مقاومت ویژه هادی', kind: 'number', unit: 'Ω·mm²/m', hint: 'از دیتاشیت/دمای طراحی پروژه وارد شود؛ نرم‌افزار مقدار را حدس نمی‌زند.' },
+    ],
+  },
+  {
+    key: 'suppression-layout',
+    title: 'ورودی‌های تکمیلی Auto Design — مسیر و سایز اطفا',
+    description: 'برای برچسب‌گذاری مسیرهای مقدماتی در CAD. این اعداد باید از محاسبه هیدرولیکی/طراحی تأییدشده وارد شوند و نرم‌افزار آن‌ها را حدس نمی‌زند.',
+    fields: [
+      { path: 'suppression.main_pipe_diameter_mm', label: 'قطر لوله اصلی انتخابی', kind: 'number', unit: 'mm' },
+      { path: 'suppression.branch_pipe_diameter_mm', label: 'قطر لوله شاخه انتخابی', kind: 'number', unit: 'mm' },
+      { path: 'suppression.standpipe_riser_diameter_mm', label: 'قطر رایزر Standpipe انتخابی', kind: 'number', unit: 'mm' },
     ],
   },
   {
