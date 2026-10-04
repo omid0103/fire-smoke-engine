@@ -71,6 +71,8 @@ type ExtendedSmoke = ReturnType<typeof getProjectDesignInput>['smoke'] & {
   makeup_shaft_y_m?:number|null
 }
 
+type LayoutLayer = {name:string;discipline:LayoutDiscipline;description:string}
+
 const finite=(value:unknown):value is number=>typeof value==='number'&&Number.isFinite(value)
 const clamp=(value:number,lo:number,hi:number)=>Math.min(hi,Math.max(lo,value))
 const round=(value:number,digits=3)=>Number(value.toFixed(digits))
@@ -237,10 +239,11 @@ export function generateEngineeringLayout(project:Project,plan:AutoDesignPlan,re
     else equipmentMap.set(key,{kind:item.kind,label:item.label,discipline:item.discipline,count:1,size_label:item.size_label})
   }
   const route_schedule=routes.map(r=>({kind:r.kind,label:r.label,discipline:r.discipline,length_m:routeLength(r.points),size_label:r.size_label}))
-  const layers=[
-    {name:'A-BUILDING',discipline:'architecture' as const,description:'پوسته مفهومی پلان'},
-    ...Array.from(new Map([...equipment.map(e=>[e.layer,{name:e.layer,discipline:e.discipline,description:`Equipment: ${e.kind}`}]),...routes.map(r=>[r.layer,{name:r.layer,discipline:r.discipline,description:`Route: ${r.kind}`}])]).values()),
-  ]
+  const layerMap=new Map<string,LayoutLayer>()
+  layerMap.set('A-BUILDING',{name:'A-BUILDING',discipline:'architecture',description:'پوسته مفهومی پلان'})
+  for(const item of equipment)layerMap.set(item.layer,{name:item.layer,discipline:item.discipline,description:`Equipment: ${item.kind}`})
+  for(const route of routes)layerMap.set(route.layer,{name:route.layer,discipline:route.discipline,description:`Route: ${route.kind}`})
+  const layers=[...layerMap.values()]
   return {
     engine_version:ENGINEERING_LAYOUT_VERSION,
     generated_at:new Date().toISOString(),
