@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 const String _appUrl = 'https://engin.rabinazar.ir';
+const String _appTitle = 'نرم‌افزار محاسباتی رابین آذر | Rabin Azar Fire Engineering';
 const Color _background = Color(0xFF111417);
 const Color _accent = Color(0xFFB3261E);
 
@@ -26,7 +27,7 @@ class RabinFireEngineeringApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Rabin Azar Fire Engineering',
+      title: _appTitle,
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: _background,
