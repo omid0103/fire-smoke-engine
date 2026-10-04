@@ -72,6 +72,8 @@ export type EngineeringDesignInput = {
     longest_circuit_m?: number | null
     circuit_current_a?: number | null
     cable_area_mm2?: number | null
+    conductor_material?: string | null
+    conductor_resistivity_ohm_mm2_m?: number | null
     ambient_noise_db?: number | null
     interfaces?: string | null
   }
@@ -136,11 +138,20 @@ export type EngineeringDesignInput = {
     stair_door_height_m?: number | null
     stair_leakage_area_m2?: number | null
     stair_shaft_height_m?: number | null
+    stair_discharge_coefficient?: number | null
+    stair_air_density_kg_m3?: number | null
+    stair_open_door_velocity_mps?: number | null
+    stair_margin_percent?: number | null
+    stair_handle_arm_m?: number | null
+    stair_closer_force_n?: number | null
     atrium_design_fire_kw?: number | null
+    atrium_convective_fraction?: number | null
+    atrium_heat_fraction?: number | null
     target_smoke_layer_height_m?: number | null
     plume_height_m?: number | null
     exhaust_temperature_c?: number | null
     ambient_temperature_c?: number | null
+    ambient_pressure_pa?: number | null
   }
   special_hazards: {
     clean_agent_room_volume_m3?: number | null
@@ -205,6 +216,59 @@ export type ProjectRequirementAssessment = {
   trace: string[]
 }
 
+export type AutoDesignTask = {
+  id: string
+  discipline: 'alarm' | 'suppression' | 'smoke'
+  calculator: string
+  label: string
+  status: 'ready' | 'blocked'
+  input: Record<string, unknown>
+  missing: string[]
+  note?: string
+}
+
+export type AutoDesignModulePlan = {
+  key: 'alarm' | 'suppression' | 'smoke'
+  label: string
+  requirement_status: RequirementStatus
+  readiness_score: number
+  scope: string[]
+  missing_inputs: string[]
+  tasks: AutoDesignTask[]
+}
+
+export type PreliminaryDesignGeometry = {
+  source: 'project-inputs' | 'inferred-rectangle'
+  width_m: number
+  length_m: number
+  height_m: number
+  levels: number
+  smoke_zones: Array<{ name: string; area_m2: number; x_m: number; y_m: number; width_m: number; length_m: number }>
+  exhaust_shaft?: { x_m: number; y_m: number; width_m: number; length_m: number }
+  makeup_shaft?: { x_m: number; y_m: number; width_m: number; length_m: number }
+}
+
+export type AutoDesignPlan = {
+  engine_version: string
+  generated_at: string
+  project_id: string
+  project_name: string
+  scope_notice: string
+  modules: AutoDesignModulePlan[]
+  tasks: AutoDesignTask[]
+  ready_task_count: number
+  blocked_task_count: number
+  global_missing: string[]
+  standards_in_scope: string[]
+  geometry: PreliminaryDesignGeometry
+  handoff: {
+    dxf_available: boolean
+    bim_json_available: boolean
+    native_rvt_available: false
+    note: string
+  }
+}
+
 export type Project = {
   id: string
   organization_id: string
@@ -221,6 +285,7 @@ export type Project = {
   project_data: (Record<string, unknown> & {
     design_input_v1?: EngineeringDesignInput
     requirements_assessment_v1?: ProjectRequirementAssessment
+    auto_design_plan_v1?: AutoDesignPlan
   }) | null
   status: 'draft' | 'active' | 'review' | 'approved' | 'archived'
   created_at: string
