@@ -1,4 +1,4 @@
-import type { DesignFieldGroup } from './projectDesign'
+import { DESIGN_GROUPS, type DesignFieldGroup } from './projectDesign'
 
 export const EXTRA_DESIGN_GROUPS: DesignFieldGroup[] = [
   {
@@ -27,3 +27,8 @@ export const EXTRA_DESIGN_GROUPS: DesignFieldGroup[] = [
     ],
   },
 ]
+
+const registered = new Set(DESIGN_GROUPS.map(group => group.key))
+for (const group of EXTRA_DESIGN_GROUPS) {
+  if (!registered.has(group.key)) DESIGN_GROUPS.push(group)
+}
