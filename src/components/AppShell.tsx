@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Activity, Bell, BookOpenCheck, Building2, Calculator, Flame, Gauge, LogOut, Menu, PanelLeftClose, Settings, ShieldCheck, Wind } from 'lucide-react'
+import { Activity, Bell, BookOpenCheck, Building2, Calculator, Flame, Gauge, Layers3, LogOut, Menu, PanelLeftClose, Settings, ShieldCheck, Wind } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import EngineeringLogo from './EngineeringLogo'
 import { supabase } from '../lib/supabase'
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 const nav = [
   ['/', 'داشبورد', Activity],
   ['/projects', 'پروژه‌ها', Building2],
+  ['/auto-design', 'طراحی خودکار', Layers3],
   ['/suppression', 'اطفاء و هیدرولیک', Flame],
   ['/smoke', 'کنترل دود', Wind],
   ['/alarm', 'اعلام حریق', Bell],
@@ -32,7 +33,7 @@ export default function AppShell() {
         </div>
         <div className="sidebar__system-card">
           <div className="pulse-dot" />
-          {!collapsed && <><span>{demo?'CUSTOMER DEMO':'ENGINEERING CORE'}</span><strong>{demo?'TEMPORARY / ACTIVE':'v0.5.1 / ONLINE'}</strong></>}
+          {!collapsed && <><span>{demo?'CUSTOMER DEMO':'ENGINEERING CORE'}</span><strong>{demo?'TEMPORARY / ACTIVE':'v0.6.0 / AUTO DESIGN'}</strong></>}
         </div>
         <nav className="sidebar__nav">
           {visibleNav.map(([to, label, Icon]) => (
