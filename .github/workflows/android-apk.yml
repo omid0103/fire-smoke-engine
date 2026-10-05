@@ -21,17 +21,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      - name: Validate shared desktop/web source
-        run: |
-          npm ci
-          npm run build
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -44,7 +33,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Create branded Android Flutter shell
+      - name: Create native Android Flutter app
         run: |
           rm -rf .mobile-build
           flutter create \
@@ -76,24 +65,18 @@ jobs:
           pubspec.write_text(text, encoding='utf-8')
           PY
 
-      - name: Add WebView dependency
+      - name: Add local-storage dependency
         working-directory: .mobile-build
-        run: flutter pub add webview_flutter
+        run: flutter pub add shared_preferences
 
-      - name: Configure Android branding and release shell
+      - name: Configure Android branding
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           manifest = Path('.mobile-build/android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text(encoding='utf-8')
-          if 'android.permission.INTERNET' not in text:
-              text = text.replace(
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />',
-                  1,
-              )
-          text = text.replace('android:label="engineering"', 'android:label="رابین آذر"')
+          text = text.replace('android:label="engineering"', 'android:label="Rabin Fire Engineering"')
           text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/rabin_launcher"')
           manifest.write_text(text, encoding='utf-8')
 
@@ -117,19 +100,19 @@ jobs:
 
       - name: Build release APK
         working-directory: .mobile-build
-        run: flutter build apk --release --build-name=1.1.0 --build-number=${{ github.run_number }}
+        run: flutter build apk --release --build-name=2.0.0 --build-number=${{ github.run_number }}
 
       - name: Prepare APK artifact
         run: |
           mkdir -p dist
           cp .mobile-build/build/app/outputs/flutter-apk/app-release.apk \
-             dist/RabinAzar-FireEngineering-v1.1.${{ github.run_number }}.apk
+             dist/Rabin-Fire-Engineering-v2.0.${{ github.run_number }}.apk
           sha256sum dist/*.apk | tee dist/SHA256SUMS.txt
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: RabinAzar-FireEngineering-Android
+          name: Rabin-Fire-Engineering-Android
           path: |
             dist/*.apk
             dist/SHA256SUMS.txt
