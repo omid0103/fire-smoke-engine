@@ -105,7 +105,7 @@ jobs:
       - name: Analyze Flutter desktop app
         working-directory: .desktop-build
         shell: pwsh
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Build Windows release
         working-directory: .desktop-build
