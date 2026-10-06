@@ -1,0 +1,102 @@
+name: Build Flutter Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/flutter-web.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Web
+        run: flutter config --enable-web
+
+      - name: Create Flutter web app
+        shell: bash
+        run: |
+          rm -rf .flutter-web-build
+          flutter create --platforms=web --org ir.rabinazar --project-name rabin_fire_engineering .flutter-web-build
+          cp mobile/lib/main.dart .flutter-web-build/lib/main.dart
+          rm -rf .flutter-web-build/test
+
+          mkdir -p .flutter-web-build/assets
+          base64 -d mobile/assets/rabin_logo_480.b64 > .flutter-web-build/assets/rabin_azar_logo.jpg
+          base64 -d mobile/assets/rabin_icon_192.b64 > .flutter-web-build/assets/rabin_icon.jpg
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.flutter-web-build/pubspec.yaml')
+          s=p.read_text()
+          if 'assets/rabin_azar_logo.jpg' not in s:
+              s=s.replace('  uses-material-design: true\n','  uses-material-design: true\n  assets:\n    - assets/rabin_azar_logo.jpg\n')
+          p.write_text(s)
+
+          m=Path('.flutter-web-build/lib/main.dart')
+          s=m.read_text()
+          s=s.replace('          minHeight: 72,', '          constraints: const BoxConstraints(minHeight: 72),')
+          s=s.replace('Icons.sprinkler_rounded', 'Icons.grid_view_rounded')
+          s=s.replace('Icons.water_pump_rounded', 'Icons.water_drop_rounded')
+          s=s.replace('Icons.detector_smoke_rounded', 'Icons.sensors_rounded')
+          m.write_text(s)
+          PY
+
+      - name: Add local storage dependency
+        working-directory: .flutter-web-build
+        run: flutter pub add shared_preferences
+
+      - name: Analyze
+        working-directory: .flutter-web-build
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build Flutter Web
+        working-directory: .flutter-web-build
+        run: flutter build web --release --base-href=/
+
+      - name: Add SPA fallback and metadata
+        shell: bash
+        run: |
+          cp .flutter-web-build/build/web/index.html .flutter-web-build/build/web/404.html
+          cat > .flutter-web-build/build/web/vercel.json <<'JSON'
+          {
+            "rewrites": [{"source": "/(.*)", "destination": "/index.html"}],
+            "headers": [
+              {"source": "/(.*)", "headers": [{"key": "X-Content-Type-Options", "value": "nosniff"}]}
+            ]
+          }
+          JSON
+
+      - name: Package web build
+        run: |
+          mkdir -p dist
+          cd .flutter-web-build/build/web
+          zip -r ../../../../dist/Rabin-Fire-Engineering-Web.zip .
+
+      - name: Upload Flutter web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rabin-Fire-Engineering-Web
+          path: dist/Rabin-Fire-Engineering-Web.zip
+          if-no-files-found: error
+          retention-days: 30
