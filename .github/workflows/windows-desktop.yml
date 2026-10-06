@@ -42,6 +42,14 @@ jobs:
           Copy-Item mobile/lib/main.dart .desktop-build/lib/main.dart -Force
           if (Test-Path .desktop-build/test) { Remove-Item .desktop-build/test -Recurse -Force }
 
+          # Compatibility fixes for the current stable Flutter SDK.
+          $main = Get-Content .desktop-build/lib/main.dart -Raw
+          $main = $main.Replace('          minHeight: 72,', '          constraints: const BoxConstraints(minHeight: 72),')
+          $main = $main.Replace('Icons.sprinkler_rounded', 'Icons.grid_view_rounded')
+          $main = $main.Replace('Icons.water_pump_rounded', 'Icons.water_drop_rounded')
+          $main = $main.Replace('Icons.detector_smoke_rounded', 'Icons.sensors_rounded')
+          Set-Content .desktop-build/lib/main.dart $main -Encoding utf8
+
           New-Item -ItemType Directory -Force -Path .desktop-build/assets | Out-Null
           $logo = [Convert]::FromBase64String((Get-Content mobile/assets/rabin_logo_480.b64 -Raw).Trim())
           [IO.File]::WriteAllBytes((Join-Path $PWD '.desktop-build/assets/rabin_azar_logo.jpg'), $logo)
