@@ -1,0 +1,1 @@
+Trigger Flutter web publication for the bilingual Rabin Fire Engineering application.
