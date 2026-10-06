@@ -1,0 +1,133 @@
+name: Build Windows Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/windows-desktop.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        shell: pwsh
+        run: flutter config --enable-windows-desktop
+
+      - name: Create Windows Flutter app
+        shell: pwsh
+        run: |
+          if (Test-Path .desktop-build) { Remove-Item .desktop-build -Recurse -Force }
+          flutter create --platforms=windows --org ir.rabinazar --project-name rabin_fire_engineering .desktop-build
+          Copy-Item mobile/lib/main.dart .desktop-build/lib/main.dart -Force
+          if (Test-Path .desktop-build/test) { Remove-Item .desktop-build/test -Recurse -Force }
+
+          New-Item -ItemType Directory -Force -Path .desktop-build/assets | Out-Null
+          $logo = [Convert]::FromBase64String((Get-Content mobile/assets/rabin_logo_480.b64 -Raw).Trim())
+          [IO.File]::WriteAllBytes((Join-Path $PWD '.desktop-build/assets/rabin_azar_logo.jpg'), $logo)
+          $icon = [Convert]::FromBase64String((Get-Content mobile/assets/rabin_icon_192.b64 -Raw).Trim())
+          [IO.File]::WriteAllBytes((Join-Path $PWD '.desktop-build/assets/rabin_icon.jpg'), $icon)
+
+          $pubspec = Get-Content .desktop-build/pubspec.yaml -Raw
+          if ($pubspec -notmatch 'assets/rabin_azar_logo.jpg') {
+            $pubspec = $pubspec.Replace("  uses-material-design: true`r`n", "  uses-material-design: true`r`n  assets:`r`n    - assets/rabin_azar_logo.jpg`r`n")
+            Set-Content .desktop-build/pubspec.yaml $pubspec -Encoding utf8
+          }
+
+      - name: Add local storage dependency
+        working-directory: .desktop-build
+        shell: pwsh
+        run: flutter pub add shared_preferences
+
+      - name: Configure Windows branding
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pillow
+          @'
+          from pathlib import Path
+          from PIL import Image
+
+          root = Path('.desktop-build')
+          src = root / 'assets' / 'rabin_icon.jpg'
+          ico = root / 'windows' / 'runner' / 'resources' / 'app_icon.ico'
+          img = Image.open(src).convert('RGBA')
+          img.save(ico, format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+
+          main_cpp = root / 'windows' / 'runner' / 'main.cpp'
+          text = main_cpp.read_text(encoding='utf-8')
+          text = text.replace('L"rabin_fire_engineering"', 'L"Rabin Fire Engineering"')
+          main_cpp.write_text(text, encoding='utf-8')
+
+          rc = root / 'windows' / 'runner' / 'Runner.rc'
+          rct = rc.read_text(encoding='utf-8')
+          replacements = {
+              '"rabin_fire_engineering"': '"Rabin Fire Engineering"',
+              '"rabin_fire_engineering.exe"': '"RabinFireEngineering.exe"',
+          }
+          for a,b in replacements.items():
+              rct = rct.replace(a,b)
+          rc.write_text(rct, encoding='utf-8')
+
+          cmake = root / 'windows' / 'CMakeLists.txt'
+          cmt = cmake.read_text(encoding='utf-8')
+          cmt = cmt.replace('set(BINARY_NAME "rabin_fire_engineering")', 'set(BINARY_NAME "RabinFireEngineering")')
+          cmake.write_text(cmt, encoding='utf-8')
+          '@ | python
+
+      - name: Analyze Flutter desktop app
+        working-directory: .desktop-build
+        shell: pwsh
+        run: flutter analyze
+
+      - name: Build Windows release
+        working-directory: .desktop-build
+        shell: pwsh
+        run: flutter build windows --release --build-name=2.0.0 --build-number=${{ github.run_number }}
+
+      - name: Package portable Windows app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/Rabin-Fire-Engineering-Windows | Out-Null
+          Copy-Item .desktop-build/build/windows/x64/runner/Release/* dist/Rabin-Fire-Engineering-Windows/ -Recurse -Force
+          @"
+          Rabin Fire Engineering / مهندسی حریق رابین
+          Windows Desktop Portable Edition
+
+          اجرا / Run:
+          RabinFireEngineering.exe
+
+          این نسخه پرتابل است و نیاز به نصب ندارد. کل پوشه را کنار هم نگه دارید.
+          This is a portable build. Keep all files in the same folder.
+          "@ | Set-Content dist/Rabin-Fire-Engineering-Windows/README.txt -Encoding utf8
+          Compress-Archive -Path dist/Rabin-Fire-Engineering-Windows/* -DestinationPath dist/Rabin-Fire-Engineering-Windows-v2.0.${{ github.run_number }}.zip -Force
+          Get-FileHash dist/Rabin-Fire-Engineering-Windows-v2.0.${{ github.run_number }}.zip -Algorithm SHA256 | Format-List | Out-File dist/SHA256SUMS.txt
+
+      - name: Upload Windows desktop build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rabin-Fire-Engineering-Windows
+          path: |
+            dist/Rabin-Fire-Engineering-Windows-v2.0.*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
