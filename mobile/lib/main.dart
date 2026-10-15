@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 const Color kBg = Color(0xFF080A0D);
 const Color kSurface = Color(0xFF12161C);
@@ -152,6 +153,7 @@ class AppCategory {
 }
 
 const categories = <AppCategory>[
+  AppCategory(id: 'projects', fa: 'پروژه و طراحی', en: 'Projects & Design', icon: Icons.architecture_rounded, color: Color(0xFF2D8CFF)),
   AppCategory(id: 'customers', fa: 'مشتریان', en: 'Customers', icon: Icons.people_alt_rounded, color: Color(0xFFE65440)),
   AppCategory(id: 'cfps', fa: 'CFPS', en: 'CFPS', icon: Icons.school_rounded, color: Color(0xFF3F8DE3)),
   AppCategory(id: 'protection', fa: 'اطفای حریق', en: 'Fire Protection', icon: Icons.fire_extinguisher_rounded, color: Color(0xFF53A84E)),
@@ -240,6 +242,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategoryBody(AppCategory c) {
     switch (c.id) {
+      case 'projects':
+        return EngineeringWorkspacePage(language: lang);
       case 'customers':
         return CustomersLanding(language: lang);
       case 'cfps':
@@ -1458,6 +1462,118 @@ class _HomeAction extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class EngineeringWorkspacePage extends StatefulWidget {
+  const EngineeringWorkspacePage({super.key, required this.language});
+  final AppLanguage language;
+
+  @override
+  State<EngineeringWorkspacePage> createState() => _EngineeringWorkspacePageState();
+}
+
+class _EngineeringWorkspacePageState extends State<EngineeringWorkspacePage> {
+  late final WebViewController _controller;
+  int _progress = 0;
+  String? _error;
+  bool _canGoBack = false;
+
+  static const _workspaceUrl = 'https://engin.rabinazar.ir/auto-design';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(kBg)
+      ..setNavigationDelegate(NavigationDelegate(
+        onProgress: (value) => mounted ? setState(() => _progress = value) : null,
+        onPageStarted: (_) => mounted ? setState(() => _error = null) : null,
+        onPageFinished: (_) async {
+          final canBack = await _controller.canGoBack();
+          if (mounted) setState(() { _progress = 100; _canGoBack = canBack; });
+        },
+        onWebResourceError: (error) {
+          if (error.isForMainFrame == true && mounted) setState(() => _error = error.description);
+        },
+        onNavigationRequest: (request) {
+          final uri = Uri.tryParse(request.url);
+          if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http')) return NavigationDecision.prevent;
+          return NavigationDecision.navigate;
+        },
+      ))
+      ..loadRequest(Uri.parse(_workspaceUrl));
+  }
+
+  Future<bool> _handleBack() async {
+    if (await _controller.canGoBack()) {
+      await _controller.goBack();
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_canGoBack,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop && await _controller.canGoBack()) {
+          await _controller.goBack();
+          final canBack = await _controller.canGoBack();
+          if (mounted) setState(() => _canGoBack = canBack);
+        }
+      },
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            decoration: const BoxDecoration(
+              color: kSurface,
+              border: Border(bottom: BorderSide(color: Color(0xFF202832))),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr(widget.language, 'فضای مهندسی پروژه', 'Engineering Workspace'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(tr(widget.language, 'پروژه، تحلیل الزامات، Auto Design، DXF و Coordination', 'Projects, rules, Auto Design, DXF & coordination'), style: const TextStyle(color: kTextMuted, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                IconButton(tooltip: tr(widget.language, 'بازخوانی', 'Reload'), onPressed: () { setState(() => _error = null); _controller.reload(); }, icon: const Icon(Icons.refresh_rounded)),
+              ],
+            ),
+          ),
+          if (_progress < 100 && _error == null) LinearProgressIndicator(value: _progress / 100, minHeight: 2, color: kBlue, backgroundColor: kSurface2),
+          Expanded(
+            child: _error == null
+                ? WebViewWidget(controller: _controller)
+                : Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_rounded, size: 48, color: kOrange),
+                          const SizedBox(height: 12),
+                          Text(tr(widget.language, 'اتصال به فضای پروژه برقرار نشد.', 'Could not connect to the project workspace.'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                          const SizedBox(height: 7),
+                          Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: kTextMuted, fontSize: 12)),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(onPressed: () { setState(() => _error = null); _controller.loadRequest(Uri.parse(_workspaceUrl)); }, icon: const Icon(Icons.refresh_rounded), label: Text(tr(widget.language, 'تلاش مجدد', 'Retry'))),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }
