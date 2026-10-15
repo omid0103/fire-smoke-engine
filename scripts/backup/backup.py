@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -146,6 +147,10 @@ def run(args, env=None):
             ('connection timed out', 'database connection timed out'),
             ('timeout expired', 'database connection timed out'),
             ('connection refused', 'database connection refused'),
+            ('network is unreachable', 'database endpoint unavailable; project may be paused/inactive'),
+            ('no route to host', 'database endpoint unavailable; project may be paused/inactive'),
+            ('server closed the connection unexpectedly', 'database endpoint unavailable; project may be paused/inactive'),
+            ('could not connect to server', 'database endpoint unavailable; project may be paused/inactive'),
             ('too many connections', 'database connection limit reached'),
             ('server version mismatch', 'database client version mismatch'),
             ('could not find an available, non-overlapping ipv4 address pool', 'container networking unavailable'),
@@ -180,13 +185,23 @@ def main():
         env.update(PGPORT='5432', PGDATABASE='postgres', PGSSLMODE='verify-full',
                    PGSSLROOTCERT='/work/ca.crt', PGCONNECT_TIMEOUT='20', PGAPPNAME=APP)
         docker = ['docker', 'run', '--rm', '--user', str(os.getuid()) + ':' + str(os.getgid()),
-                  '-v', str(root) + ':/work']
+                  '--network', 'host', '-v', str(root) + ':/work']
         for key in ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD',
                     'PGSSLMODE', 'PGSSLROOTCERT', 'PGCONNECT_TIMEOUT', 'PGAPPNAME']:
             docker += ['-e', key]
         docker += [IMAGE]
-        def sql(query):
-            return run(docker + ['psql', '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', query], env).decode().strip()
+        def sql(query, attempts=4):
+            last = None
+            for attempt in range(1, attempts + 1):
+                try:
+                    return run(docker + ['psql', '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', query], env).decode().strip()
+                except RuntimeError as exc:
+                    last = exc
+                    if attempt >= attempts:
+                        raise
+                    print(f'Database preflight retry {attempt}/{attempts - 1}', flush=True)
+                    time.sleep(min(5 * attempt, 15))
+            raise last or RuntimeError('Database preflight failed')
         print('Stage: database connection and version check', flush=True)
         version = sql('show server_version_num')
         if not 170000 <= int(version) < 180000:
