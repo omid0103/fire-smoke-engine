@@ -1,7 +1,7 @@
 import type { AutoDesignPlan, CalculationResponse, Project } from '../types'
 import { getProjectDesignInput } from './projectDesign'
 import type { ArchitectureModel, ArchPoint } from './architectureDxf'
-import { pointBlocked, segmentBlocked } from './architectureDxf'
+import { pointBlocked, pointInPolygon, segmentBlocked } from './architectureDxf'
 import { generateEngineeringLayout, type EngineeringLayout, type LayoutEquipment, type LayoutRoute } from './engineeringLayout'
 
 export type CoordinationIssue={id:string;severity:'error'|'warning'|'info';discipline:'alarm'|'suppression'|'smoke'|'coordination';kind:'equipment-clash'|'route-clash'|'spacing'|'input';message:string;element_ids:string[]}
@@ -36,11 +36,64 @@ function routeAware(arch:ArchitectureModel,r:LayoutRoute):LayoutRoute{
   return {...r,points:best,source:'concept' as const}
 }
 function routeLength(r:LayoutRoute){return round(r.points.slice(1).reduce((s,p,i)=>s+Math.hypot(p.x_m-r.points[i].x_m,p.y_m-r.points[i].y_m),0),2)}
+function roomBounds(points:ArchPoint[]){return {minX:Math.min(...points.map(p=>p.x_m)),maxX:Math.max(...points.map(p=>p.x_m)),minY:Math.min(...points.map(p=>p.y_m)),maxY:Math.max(...points.map(p=>p.y_m))}}
+function roomPoints(arch:ArchitectureModel,room:ArchitectureModel['rooms'][number],count:number,clearance:number):ArchPoint[]{
+  if(count<=0)return []
+  const b=roomBounds(room.points),w=Math.max(.1,b.maxX-b.minX),h=Math.max(.1,b.maxY-b.minY),candidates:ArchPoint[]=[]
+  for(let density=3;density<=18&&candidates.length<count*4;density+=2){
+    const cols=Math.max(2,Math.ceil(Math.sqrt(density*density*w/h))),rows=Math.max(2,Math.ceil(density*density/cols))
+    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){
+      const p=point(b.minX+(col+.5)*w/cols,b.minY+(r+.5)*h/rows)
+      if(pointInPolygon(p,room.points)&&!pointBlocked(arch,p,clearance)&&!candidates.some(q=>Math.hypot(q.x_m-p.x_m,q.y_m-p.y_m)<.15))candidates.push(p)
+    }
+  }
+  if(!candidates.length)return []
+  const selected:ArchPoint[]=[candidates.reduce((best,p)=>Math.hypot(p.x_m-(b.minX+b.maxX)/2,p.y_m-(b.minY+b.maxY)/2)<Math.hypot(best.x_m-(b.minX+b.maxX)/2,best.y_m-(b.minY+b.maxY)/2)?p:best,candidates[0])]
+  while(selected.length<count&&selected.length<candidates.length){
+    const next=candidates.filter(p=>!selected.includes(p)).reduce((best,p)=>{
+      const d=Math.min(...selected.map(s=>Math.hypot(s.x_m-p.x_m,s.y_m-p.y_m))),bd=Math.min(...selected.map(s=>Math.hypot(s.x_m-best.x_m,s.y_m-best.y_m)))
+      return d>bd?p:best
+    },candidates.find(p=>!selected.includes(p))!)
+    selected.push(next)
+  }
+  return selected.slice(0,count)
+}
+function allocateRoomCounts(total:number,rooms:ArchitectureModel['rooms']):number[]{
+  if(total<=0||!rooms.length)return rooms.map(()=>0)
+  const weights=rooms.map(r=>Math.max(r.area_m2,.01)),sum=weights.reduce((a,b)=>a+b,0),counts=rooms.map(()=>0)
+  if(total>=rooms.length){rooms.forEach((_,i)=>counts[i]=1);total-=rooms.length}
+  else{[...rooms.keys()].sort((a,b)=>weights[b]-weights[a]).slice(0,total).forEach(i=>counts[i]=1);return counts}
+  const raw=weights.map(w=>total*w/sum),base=raw.map(Math.floor);base.forEach((v,i)=>counts[i]+=v);let remaining=total-base.reduce((a,b)=>a+b,0)
+  raw.map((v,i)=>({i,frac:v-Math.floor(v)})).sort((a,b)=>b.frac-a.frac).slice(0,remaining).forEach(x=>counts[x.i]++)
+  return counts
+}
+function redistributeInRooms(project:Project,arch:ArchitectureModel,items:LayoutEquipment[]):LayoutEquipment[]{
+  const rooms=arch.rooms.filter(r=>r.area_m2>=2).slice(0,200);if(!rooms.length)return items
+  const d=getProjectDesignInput(project) as ReturnType<typeof getProjectDesignInput>&Criteria
+  const kinds:[string,'alarm'|'suppression',number][]=[['detector','alarm',d.alarm.min_detector_wall_clearance_m||.12],['sprinkler','suppression',d.suppression.min_sprinkler_wall_clearance_m||.12]]
+  let output=[...items]
+  for(const [kind,discipline,clearance] of kinds){const devices=output.filter(e=>e.kind===kind);if(!devices.length)continue;const counts=allocateRoomCounts(devices.length,rooms),pts=rooms.flatMap((room,i)=>roomPoints(arch,room,counts[i],clearance));if(pts.length!==devices.length)continue;let k=0;output=output.map(e=>e.kind===kind?{...e,x_m:pts[k].x_m,y_m:pts[k++].y_m,source:'concept' as const}:e)}
+  return output
+}
+function rebuildRoutesForRooms(routes:LayoutRoute[],equipment:LayoutEquipment[],arch:ArchitectureModel):LayoutRoute[]{
+  const facp=equipment.find(e=>e.kind==='facp'),detectors=equipment.filter(e=>e.kind==='detector').sort((a,b)=>a.y_m-b.y_m||a.x_m-b.x_m)
+  const riser=equipment.find(e=>e.kind==='riser'),sprinklers=equipment.filter(e=>e.kind==='sprinkler')
+  let out=routes.filter(r=>r.kind!=='cable'&&r.kind!=='branch-pipe'&&r.kind!=='feed-pipe')
+  if(facp&&detectors.length)out.push({id:'FA-LOOP-ROOM',discipline:'alarm',kind:'cable',label:'Fire Alarm Loop — Room Aware',layer:'FA-CABLE',points:[point(facp.x_m,facp.y_m),...detectors.map(e=>point(e.x_m,e.y_m))],source:'concept'})
+  if(riser&&sprinklers.length){
+    arch.rooms.forEach((room,index)=>{const devices=sprinklers.filter(e=>pointInPolygon(point(e.x_m,e.y_m),room.points));if(!devices.length)return;const ordered=[...devices].sort((a,b)=>a.x_m-b.x_m||a.y_m-b.y_m);const pts=ordered.map(e=>point(e.x_m,e.y_m));out.push({id:`FF-RM-${index+1}`,discipline:'suppression',kind:'branch-pipe',label:`Room Branch ${index+1}`,layer:'FF-BRANCH',points:pts.length===1?[pts[0],point(Math.min(arch.bounds.width_m,pts[0].x_m+.2),pts[0].y_m)]:pts,source:'concept'});const target=pts[0];out.push({id:`FF-RM-FEED-${index+1}`,discipline:'suppression',kind:'feed-pipe',label:`Room Feed ${index+1}`,layer:'FF-MAIN',points:[point(riser.x_m,riser.y_m),point(target.x_m,riser.y_m),target],source:'concept'})})
+  }
+  return out
+}
 export function generateArchitectureAwareLayout(project:Project,plan:AutoDesignPlan,results:Results,arch?:ArchitectureModel|null):EngineeringLayout{
   if(!arch)return generateEngineeringLayout(project,plan,results)
-  const base=generateEngineeringLayout(project,architecturePlan(plan,arch),results),equipment=relocate(project,arch,base.equipment),routes=base.routes.map(r=>routeAware(arch,r))
+  const base=generateEngineeringLayout(project,architecturePlan(plan,arch),results)
+  const equipment=redistributeInRooms(project,arch,relocate(project,arch,base.equipment))
+  const roomRoutes=rebuildRoutesForRooms(base.routes,equipment,arch)
+  const routes=roomRoutes.map(r=>routeAware(arch,r))
   const route_schedule=routes.map(r=>({kind:r.kind,label:r.label,discipline:r.discipline,length_m:routeLength(r),size_label:r.size_label}))
-  return {...base,engine_version:`${base.engine_version}+arch-1.0`,floor:{...base.floor,width_m:arch.bounds.width_m,length_m:arch.bounds.length_m,source:'project-inputs'},equipment,routes,route_schedule,notes:[...base.notes,`پلان معماری ${arch.source_name} مبنای Bounds و Coordination قرار گرفت.`,...arch.warnings]}
+  const roomNote=arch.rooms.length?`جانمایی دتکتور/اسپرینکلر در ${arch.rooms.length} فضای قابل تشخیص به‌صورت Room-aware توزیع شد.`:'فضای بسته قابل‌اعتماد برای Room-aware placement تشخیص داده نشد.'
+  return {...base,engine_version:`${base.engine_version}+arch-1.1`,floor:{...base.floor,width_m:arch.bounds.width_m,length_m:arch.bounds.length_m,source:'project-inputs'},equipment,routes,route_schedule,notes:[...base.notes,`پلان معماری ${arch.source_name} مبنای Bounds و Coordination قرار گرفت.`,roomNote,...arch.warnings]}
 }
 function nearest(items:LayoutEquipment[],item:LayoutEquipment){let best=Infinity;for(const other of items)if(other.id!==item.id)best=Math.min(best,Math.hypot(item.x_m-other.x_m,item.y_m-other.y_m));return best}
 export function auditEngineeringLayout(project:Project,layout:EngineeringLayout,arch?:ArchitectureModel|null):CoordinationAudit{
