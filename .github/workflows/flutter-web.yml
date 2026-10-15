@@ -93,7 +93,7 @@ jobs:
         run: |
           mkdir -p dist
           cd .flutter-web-build/build/web
-          zip -r ../../../../dist/Rabin-Fire-Engineering-Web.zip .
+          zip -r ../../../dist/Rabin-Fire-Engineering-Web.zip .
 
       - name: Upload Flutter web build
         uses: actions/upload-artifact@v4
