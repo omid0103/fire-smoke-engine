@@ -38,7 +38,7 @@ jobs:
         run: |
           rm -rf .flutter-web-build
           flutter create --platforms=web --org ir.rabinazar --project-name rabin_fire_engineering .flutter-web-build
-          cp mobile/lib/main.dart .flutter-web-build/lib/main.dart
+          cp mobile/lib/main_desktop.dart .flutter-web-build/lib/main.dart
           rm -rf .flutter-web-build/test
 
           mkdir -p .flutter-web-build/assets
@@ -62,9 +62,11 @@ jobs:
           m.write_text(s)
           PY
 
-      - name: Add local storage dependency
+      - name: Add web dependencies
         working-directory: .flutter-web-build
-        run: flutter pub add shared_preferences
+        run: |
+          flutter pub add shared_preferences
+          flutter pub add url_launcher
 
       - name: Analyze
         working-directory: .flutter-web-build
