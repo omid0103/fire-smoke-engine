@@ -78,9 +78,11 @@ jobs:
           pubspec.write_text(text, encoding='utf-8')
           PY
 
-      - name: Add local-storage dependency
+      - name: Add app dependencies
         working-directory: .mobile-build
-        run: flutter pub add shared_preferences
+        run: |
+          flutter pub add shared_preferences
+          flutter pub add webview_flutter
 
       - name: Configure Android branding
         run: |
@@ -89,6 +91,8 @@ jobs:
 
           manifest = Path('.mobile-build/android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text(encoding='utf-8')
+          if 'android.permission.INTERNET' not in text:
+              text = text.replace('<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />', 1)
           text = text.replace('android:label="engineering"', 'android:label="Rabin Fire Engineering"')
           text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/rabin_launcher"')
           manifest.write_text(text, encoding='utf-8')
