@@ -1508,14 +1508,6 @@ class _EngineeringWorkspacePageState extends State<EngineeringWorkspacePage> {
       ..loadRequest(Uri.parse(_workspaceUrl));
   }
 
-  Future<bool> _handleBack() async {
-    if (await _controller.canGoBack()) {
-      await _controller.goBack();
-      return false;
-    }
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
