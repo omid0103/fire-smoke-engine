@@ -1,6 +1,11 @@
 name: Encrypted database backup to Drive
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backup/**'
+      - '.github/workflows/backup-drive.yml'
   schedule:
     - cron: '47 23 * * *'
 permissions:
