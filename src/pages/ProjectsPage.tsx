@@ -61,7 +61,15 @@ export default function ProjectsPage(){
 
   useEffect(()=>{load()},[])
 
-  function startCreate(){
+  async function canSaveProject(){
+    const {data,error}=await supabase.rpc('has_subscription')
+    if(error){alert('بررسی اعتبار اشتراک انجام نشد. دوباره تلاش کنید.');return false}
+    if(data!==true){alert('برای ثبت یا ویرایش پروژه، اشتراک فعال لازم است. از بخش «اشتراک و تمدید» اقدام کنید. اطلاعات واردشده در فرم حفظ می‌شود.');return false}
+    return true
+  }
+
+  async function startCreate(){
+    if(!await canSaveProject())return
     setEditing(null)
     setForm(newForm())
     setOpen(true)
@@ -93,6 +101,7 @@ export default function ProjectsPage(){
     if(!org)return alert('ابتدا عضویت سازمان را از داشبورد فعال کنید.')
     setBusy(true)
     try{
+      if(!await canSaveProject())return
       const u=(await supabase.auth.getUser()).data.user
       const currentProject=editing?projects.find(p=>p.id===editing):null
       const grossArea=form.design.geometry.gross_built_area_m2??null
@@ -121,7 +130,13 @@ export default function ProjectsPage(){
       const {error}=editing
         ? await supabase.from('engineering_projects').update({...base,updated_at:new Date().toISOString()}).eq('id',editing).select('id').single()
         : await supabase.from('engineering_projects').insert({organization_id:org,...base,created_by:u?.id,status:'active'})
-      if(error)throw error
+      if(error){
+        if(error.code==='42501'){
+          if(!await canSaveProject())return
+          throw new Error('سطح دسترسی شما اجازه ثبت یا ویرایش این پروژه را نمی‌دهد. با مدیر سازمان تماس بگیرید.')
+        }
+        throw new Error('ثبت اطلاعات پروژه انجام نشد. اطلاعات فرم حفظ شده است؛ دوباره تلاش کنید.')
+      }
       setOpen(false)
       setEditing(null)
       setForm(newForm())
