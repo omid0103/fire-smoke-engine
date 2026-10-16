@@ -32,7 +32,20 @@ export default function AutoDesignPage(){
   useEffect(()=>{supabase.from('engineering_projects').select('*').order('updated_at',{ascending:false}).then(({data})=>{if(data){setProjects(data as Project[]);if(data.length)setProjectId(String(data[0].id))}})},[])
   const project=projects.find(p=>p.id===projectId)||null
   const plan=useMemo(()=>project?generateAutoDesignPlan(project):null,[project])
-  useEffect(()=>{setResults({});setArchitecture((project?.project_data?.architecture_model_v1 as ArchitectureModel|undefined)||null)},[projectId,project?.id])
+  useEffect(()=>{
+    const saved=project?.project_data?.auto_design_results_v1 as Record<string,CalculationResponse>|undefined
+    const savedPlan=project?.project_data?.auto_design_plan_v1 as ReturnType<typeof generateAutoDesignPlan>|undefined
+    const restored:Record<string,TaskResult>={}
+    for(const task of plan?.tasks||[]){
+      const previous=savedPlan?.tasks?.find(item=>item.id===task.id)
+      const response=saved?.[task.id]
+      if(response?.calculation&&previous?.calculator===task.calculator&&JSON.stringify(previous.input)===JSON.stringify(task.input)){
+        restored[task.id]={ok:true,response}
+      }
+    }
+    setResults(restored)
+    setArchitecture((project?.project_data?.architecture_model_v1 as ArchitectureModel|undefined)||null)
+  },[projectId,project?.id])
 
   const executable=useMemo(()=>{
     if(!plan)return []
