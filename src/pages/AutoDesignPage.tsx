@@ -18,6 +18,7 @@ function downloadText(filename:string,text:string,type:string){
   const a=document.createElement('a')
   a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)
 }
+const inputSignature=(input:unknown)=>JSON.stringify(input,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)
 const safeName=(value:string)=>value.replace(/[^a-zA-Z0-9\u0600-\u06FF_-]+/g,'-').replace(/-+/g,'-')
 
 export default function AutoDesignPage(){
@@ -39,7 +40,7 @@ export default function AutoDesignPage(){
     for(const task of plan?.tasks||[]){
       const previous=savedPlan?.tasks?.find(item=>item.id===task.id)
       const response=saved?.[task.id]
-      if(response?.calculation&&previous?.calculator===task.calculator&&JSON.stringify(previous.input)===JSON.stringify(task.input)){
+      if(response?.calculation&&previous?.calculator===task.calculator&&inputSignature(previous.input)===inputSignature(task.input)){
         restored[task.id]={ok:true,response}
       }
     }
